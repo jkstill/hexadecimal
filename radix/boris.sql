@@ -1,0 +1,43 @@
+
+drop table boris;
+
+create table boris (byte varchar2(8));
+
+insert into boris(byte) values('01010100'); 
+insert into boris(byte) values('01101000'); 
+insert into boris(byte) values('01100101'); 
+insert into boris(byte) values('00100000'); 
+insert into boris(byte) values('01110010'); 
+insert into boris(byte) values('01100101'); 
+insert into boris(byte) values('01100100'); 
+insert into boris(byte) values('01100101'); 
+insert into boris(byte) values('01100101'); 
+insert into boris(byte) values('01101101'); 
+insert into boris(byte) values('01100101'); 
+insert into boris(byte) values('01100100'); 
+insert into boris(byte) values('00100000'); 
+insert into boris(byte) values('01101111'); 
+insert into boris(byte) values('01100110'); 
+insert into boris(byte) values('00100000'); 
+insert into boris(byte) values('01110100'); 
+insert into boris(byte) values('01101000'); 
+insert into boris(byte) values('01100101'); 
+insert into boris(byte) values('00100000'); 
+insert into boris(byte) values('01001100'); 
+insert into boris(byte) values('01101111'); 
+insert into boris(byte) values('01110010'); 
+insert into boris(byte) values('01100100'); 
+insert into boris(byte) values('00100000'); 
+insert into boris(byte) values('01110011'); 
+insert into boris(byte) values('01101000'); 
+insert into boris(byte) values('01100001'); 
+insert into boris(byte) values('01101100'); 
+insert into boris(byte) values('01101100'); 
+insert into boris(byte) values('00100000'); 
+insert into boris(byte) values('01110010'); 
+insert into boris(byte) values('01100101'); 
+insert into boris(byte) values('01110100'); 
+insert into boris(byte) values('01110101'); 
+insert into boris(byte) values('01110010'); 
+insert into boris(byte) values('01101110'); 
+insert into boris(byte) values('00101110'); 

@@ -1,0 +1,276 @@
+head	1.5;
+access;
+symbols;
+locks
+	jkstill:1.5; strict;
+comment	@# @;
+
+
+1.5
+date	2020.12.09.20.06.59;	author jkstill;	state Exp;
+branches;
+next	1.4;
+
+1.4
+date	2008.07.02.19.30.11;	author jkstill;	state Exp;
+branches;
+next	1.3;
+
+1.3
+date	2003.10.02.20.23.37;	author jkstill;	state Exp;
+branches;
+next	1.2;
+
+1.2
+date	2003.01.28.20.09.29;	author jkstill;	state Exp;
+branches;
+next	1.1;
+
+1.1
+date	2003.01.28.19.47.44;	author jkstill;	state Exp;
+branches;
+next	;
+
+
+desc
+@initial
+@
+
+
+1.5
+log
+@added base 32
+@
+text
+@
+create or replace package radix
+is
+
+	function to_base( p_dec in number, p_base in number ) 
+	return varchar2;
+
+	function to_dec (
+		p_str in varchar2, 
+		p_from_base in number default 16 
+	) return number;
+
+	function to_hex( p_dec in number ) return varchar2;
+	function to_bin( p_dec in number ) return varchar2;
+	function to_oct( p_dec in number ) return varchar2;
+	function to_36( p_dec in number ) return varchar2;
+	function to_32( p_dec in number ) return varchar2;
+	function to_64( p_dec in number ) return varchar2;
+
+	--pragma restrict_references( to_base, wnds, rnds, wnps, rnps );
+	--pragma restrict_references( to_dec, wnds, rnds, wnps, rnps );
+	--pragma restrict_references( to_hex, wnds, rnds, wnps, rnps );
+	--pragma restrict_references( to_bin, wnds, rnds, wnps, rnps );
+	--pragma restrict_references( to_oct, wnds, rnds, wnps, rnps );
+	--pragma restrict_references( to_36, wnds, rnds, wnps, rnps );
+	--pragma restrict_references( to_64, wnds, rnds, wnps, rnps );
+
+	procedure debug_on;
+	procedure debug_off;
+
+end radix;
+/
+
+show errors
+
+create or replace package body radix
+is
+
+	hex_debug boolean;
+
+	procedure debug_on
+	is
+	begin
+		hex_debug := true;
+	end;
+
+	procedure debug_off
+	is
+	begin
+		hex_debug := false;
+	end;
+
+	procedure p ( p_output varchar2) 
+	is
+	begin
+		dbms_output.put_line(p_output);
+	end;
+		
+	function to_base( p_dec in number, p_base in number ) 
+	return varchar2
+	is
+		l_str	varchar2(255) default NULL;
+		l_num	number	default p_dec;
+		l_hex	varchar2(64) := '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+	begin
+		-- base 64 for Oracle extended rowid format
+		if p_base = 64 then
+			l_hex := 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+		elsif p_base = 32 then
+			-- non-standard base 32 alphabet - used for Oracle SQL_ID
+			l_hex := '0123456789abcdfghjkmnpqrstuvwxyz';
+		end if;
+		
+		if hex_debug then
+			p('P_DEC : ' || to_char(p_dec));
+			p('L_NUM : ' || to_char(l_num));
+			p('P_BASE: ' || to_char(p_base));
+			p('L_HEX : ' || l_hex);
+		end if;
+
+		if ( trunc(p_dec) <> p_dec OR p_dec <  0 ) then
+			raise INVALID_NUMBER;
+		end if;
+		loop
+			l_str := substr( l_hex, mod(l_num,p_base)+1, 1 ) || l_str;
+			l_num := trunc( l_num/p_base );
+			if hex_debug then
+				p('L_STR: ' || l_str);
+				p('L_NUM: ' || to_char(l_num));
+			end if;
+			exit when ( l_num = 0 );
+		end loop;
+		return l_str;
+	end to_base;
+
+	function to_dec ( 
+		p_str in varchar2, 
+		p_from_base in number default 16 ) 
+	return number
+	is
+		l_num   number default 0;
+		l_hex   varchar2(64) := '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+	begin
+		-- base 64 for Oracle extended rowid format
+		if p_from_base = 64 then
+			l_hex := 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+		elsif p_from_base = 32 then
+			-- non-standard base 32 alphabet - used for Oracle SQL_ID
+			l_hex := '0123456789abcdfghjkmnpqrstuvwxyz';
+		end if;
+		for i in 1 .. length(p_str) loop
+			if p_from_base = 64 then
+				l_num := l_num * p_from_base + instr(l_hex,substr(p_str,i,1))-1;
+			else
+				l_num := l_num * p_from_base + instr(l_hex,upper(substr(p_str,i,1)))-1;
+			end if;
+		end loop;
+		return l_num;
+	end to_dec;
+
+	function to_hex( p_dec in number ) return varchar2
+	is
+	begin
+		return to_base( p_dec, 16 );
+	end to_hex;
+
+	function to_bin( p_dec in number ) return varchar2
+	is
+	begin
+		return to_base( p_dec, 2 );
+	end to_bin;
+
+	function to_oct( p_dec in number ) return varchar2
+	is
+	begin
+		return to_base( p_dec, 8 );
+	end to_oct;
+
+	function to_36( p_dec in number ) return varchar2
+	is
+	begin
+		return to_base( p_dec, 36 );
+	end to_36;
+
+	function to_32( p_dec in number ) return varchar2
+	is
+	begin
+		return to_base( p_dec, 32 );
+	end to_32;
+
+	function to_64( p_dec in number ) return varchar2
+	is
+	begin
+		return to_base( p_dec, 64 );
+	end to_64;
+
+begin
+	hex_debug := false;
+end;
+/
+
+
+show errors
+
+@
+
+
+1.4
+log
+@added debug
+@
+text
+@d6 1
+a6 1
+d21 1
+d73 3
+d111 3
+d148 6
+@
+
+
+1.3
+log
+@don't use upper() with base 64
+@
+text
+@d23 10
+a32 7
+	pragma restrict_references( to_base, wnds, rnds, wnps, rnps );
+	pragma restrict_references( to_dec, wnds, rnds, wnps, rnps );
+	pragma restrict_references( to_hex, wnds, rnds, wnps, rnps );
+	pragma restrict_references( to_bin, wnds, rnds, wnps, rnps );
+	pragma restrict_references( to_oct, wnds, rnds, wnps, rnps );
+	pragma restrict_references( to_36, wnds, rnds, wnps, rnps );
+	pragma restrict_references( to_64, wnds, rnds, wnps, rnps );
+d42 20
+d73 8
+d87 4
+d148 3
+a150 1
+end radix;
+@
+
+
+1.2
+log
+@does Oracle base 64 also
+@
+text
+@d74 5
+a78 1
+			l_num := l_num * p_from_base + instr(l_hex,upper(substr(p_str,i,1)))-1;
+@
+
+
+1.1
+log
+@Initial revision
+@
+text
+@d21 1
+d29 1
+d44 1
+a44 1
+		l_hex	varchar2(36) := '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+d46 4
+d67 1
+a67 1
+		l_hex   varchar2(36) := '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+d69 4
+d103 5
+@
