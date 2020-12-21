@@ -255,6 +255,12 @@ begin
 		exit when hex_cursor%notfound ;
 		dbms_output.put_line('id: ' || i_id);
 
+		DBMS_LOB.CREATETEMPORARY (
+			lob_loc	=> c_working_text,
+			cache		=> true,
+			dur		=> DBMS_LOB.SESSION
+		);
+
 		DBMS_LOB.CONVERTTOCLOB(
 			dest_lob		=> c_working_text,
 			src_blob		=> b_working_blob,
@@ -267,11 +273,12 @@ begin
 		);
 
 		dbms_output.put_line('blob len: ' || dbms_lob.getlength(b_working_blob));
+		dbms_output.put_line('clob len: ' || dbms_lob.getlength(c_working_text));
 
 		--/*
 		--for srec in ( select * from  table(hexdump_blob(blob_in => b_working_blob)))
 		--for srec in ( select * from  table(hexdump_blob(blob_in => utl_raw.cast_to_raw('this is a BLOB test'))) )
-		for srec in ( select * from  table(hexdump(c_working_text) ))
+		for srec in ( select * from  table(hexdump(c_working_text)))
 		loop
 			null;
 			r_hexdump_row.address := srec.address;
