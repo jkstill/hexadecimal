@@ -15,28 +15,19 @@ is
 		working_text clob
 	);
 
-	type t_blob_row is record (
-		working_data blob
-	);
-
-
 	type t_hexdump_row is record (
 		address	varchar2(8),
 		data		varchar2(48),
-		text		varchar2(2048)
+		text		varchar2(50)
 	);
 
 	type t_hexdump_tab is table of t_hexdump_row;
 
 	type t_hexdump_cursor is ref cursor return t_hexdump_row;
 	type t_clob_cursor is ref cursor return t_text_row;
-	type t_blob_cursor is ref cursor return t_blob_row;
 
 	function hexdump (text_in clob) return t_hexdump_tab pipelined;
 	function hexdump (hex_cursor t_clob_cursor) return t_hexdump_tab pipelined;
-
-	function hexdump_blob (blob_in blob ) return t_hexdump_tab pipelined;
-	function hexdump_blob (hex_cursor t_blob_cursor) return t_hexdump_tab pipelined;
 
 	function  to_spaced_hex (text_in varchar2 , is_raw boolean default false) return varchar2;
 
@@ -58,8 +49,6 @@ is
 	--v_ret_string varchar2(48) := '';
 	v_ret_string varchar2(256) := '';
 begin
-
-	--return 'tsh dummy'; -- testing
 
 	i_text_len := length(text_in);
 
@@ -100,10 +89,6 @@ is
 	v_chr varchar2(1);
 begin
 	i_text_len := length(text_in);
-
-	return 'stp dummy'; -- testing
-
-	dbms_output.put_line('stp: ' || i_text_len);
 
 	if i_text_len = 0 then
 		return '|' || rpad('.',16,'.') || '|';
@@ -170,55 +155,6 @@ begin
 
 end;
 
-function hexdump_blob (blob_in blob) return t_hexdump_tab pipelined is
-
-	b_working_blob blob;
-	i_blob_len integer := 0;
-	i_blob_idx integer := 0;
-	i_blob_chunksize integer := 16;
-	i_blob_chunk raw(16);
-	r_hexdump_row t_hexdump_row := t_hexdump_row(null,null,null);
-	v_hex_address varchar2(8);
-begin
-
-	--b_working_blob := blob_in;
-	i_blob_len := dbms_lob.getlength(blob_in);
-
-	if (not i_blob_len > 0) then
-		pipe row (r_hexdump_row);
-		return;
-	end if;
-
-	i_blob_idx := 1;
-	
-	while true
-	loop
-		i_blob_chunk := dbms_lob.substr(blob_in,i_blob_chunksize, i_blob_idx);
-
-		r_hexdump_row.address := lpad(trim(to_char(i_blob_idx-1,'XXXXXXXX')),8,0);
-
-		r_hexdump_row.data := to_spaced_hex(utl_raw.cast_to_varchar2(i_blob_chunk),true);
-
-		--dbms_output.put_line('stp: ' || length(utl_raw.cast_to_varchar2(i_blob_chunk)));
-
-		r_hexdump_row.text := 'testing';
-		r_hexdump_row.text := safe_to_print(utl_raw.cast_to_varchar2(i_blob_chunk));
-
-		pipe row (r_hexdump_row);
-
-		i_blob_idx := i_blob_idx + i_blob_chunksize;
-
-		-- exit loop when 
-		if i_blob_idx >= i_blob_len then
-			exit;
-		end if;
-
-	end loop;
-
-	return;
-
-end;
-
 
 --function hexdump (hex_cursor t_hexdump_cursor ) return t_hexdump_tab pipelined is
 function hexdump (hex_cursor t_clob_cursor ) return t_hexdump_tab pipelined is
@@ -248,93 +184,12 @@ begin
 end;
 
 
-function hexdump_blob (hex_cursor t_blob_cursor) return t_hexdump_tab pipelined is
-	r_hexdump_row t_hexdump_row := t_hexdump_row(null,null,null);
-
-	i_pad_char integer := 88; -- X
-	i_blob_read_sz number := 32767;
-	r_buf raw(32767); -- must match read size
-	i_blob_offset number := 1;
-	b_working_blob blob;
-	c_working_text clob;
-	i_id integer;
-	i_convert_warning integer;
-	i_src_offset integer := 1;
-	i_dest_offset integer := 1;
-	--i_lang_context integer := dbms_lob.DEFAULT_LANG_CTX ;
-	i_lang_context integer := 0;
 begin
-
-	--/*
-	DBMS_LOB.CREATETEMPORARY (
-		lob_loc	=> b_working_blob,
-		cache		=> true,
-		dur		=> DBMS_LOB.CALL
-	);
-	--*/
-
-	loop
-		
-		fetch hex_cursor into b_working_blob;
-		exit when hex_cursor%notfound ;
-		--dbms_output.put_line('id: ' || i_id);
-		dbms_output.put_line('blob len: ' || dbms_lob.getlength(b_working_blob));
-
-		while true
-		loop
-			begin
-				dbms_lob.read(
-					lob_loc	=> b_working_blob,
-					amount	=> i_blob_read_sz,
-					offset	=> i_blob_offset,
-					buffer	=> r_buf
-				);
-			exception
-			when no_data_found then
-				exit;
-			when others then
-				raise;
-			end;
-
-			exit when i_blob_offset = 0;
-
-			i_blob_offset := i_blob_offset + i_blob_read_sz;
-
-			for srec in ( select * from  table(hexdump_blob(r_buf)))
-			loop
-				null;
-			r_hexdump_row.address := srec.address;
-			r_hexdump_row.data := srec.data;
-			r_hexdump_row.text := srec.text;
-			pipe row (r_hexdump_row);
-			end loop;
-
-			--exit;
-
-		end loop;
-		--*/
-
-	end loop;
-
-	--dbms_lob.filecloseall;
-
-	return;
-
-
+	null;
 exception
 when others then
 	dbms_output.put_line(dbms_utility.format_call_stack);
 	raise;
-
-end;
-
-
-begin
-	null;
---exception
---when others then
-	--dbms_output.put_line(dbms_utility.format_call_stack);
-	--raise;
 end;
 /
 
