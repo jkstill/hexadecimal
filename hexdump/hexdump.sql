@@ -29,7 +29,7 @@ is
 	function hexdump (text_in clob) return t_hexdump_tab pipelined;
 	function hexdump (hex_cursor t_clob_cursor) return t_hexdump_tab pipelined;
 
-	function  to_spaced_hex (text_in varchar2 , is_raw boolean default false) return varchar2;
+	function  to_spaced_hex (text_in varchar2) return varchar2;
 
 end;
 /
@@ -43,7 +43,7 @@ create or replace package body hexdump
 is
 
 -- using varchar2 as the length should always be <= 16 clob, <= 32 for blob (hex)
-function  to_spaced_hex (text_in varchar2 , is_raw boolean default false) return varchar2
+function  to_spaced_hex (text_in varchar2) return varchar2
 is
 	i_text_len integer := 0;
 	--v_ret_string varchar2(48) := '';
@@ -65,14 +65,7 @@ begin
 	loop
 		exit when i >= i_text_len;
 		--continue when mod(i,2) = 1;
-		if is_raw then
-			--continue when mod(i,2) = 0;
-			--v_ret_string := v_ret_string || rawtohex(utl_raw.cast_to_raw(substr(text_in,i+1,2))) || ' ';
-			v_ret_string := v_ret_string || rawtohex(utl_raw.cast_to_raw(substr(text_in,i+1,1))) || ' ';
-			--dbms_output.put_line('v_ret_str: ' || v_ret_string);
-		else
-			v_ret_string := v_ret_string || rawtohex(utl_raw.cast_to_raw(substr(text_in,i+1,1))) || ' ';
-		end if;
+		v_ret_string := v_ret_string || rawtohex(utl_raw.cast_to_raw(substr(text_in,i+1,1))) || ' ';
 	end loop;
 
 	v_ret_string := rtrim(v_ret_string);
