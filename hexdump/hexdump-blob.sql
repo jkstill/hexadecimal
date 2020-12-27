@@ -1,5 +1,5 @@
 
-create or replace package hexdump_blob
+create or replace package hexdump_binary
 is
 
 	/*
@@ -37,11 +37,11 @@ end;
 /
 
 
-show errors package hexdump_blob;
+show errors package hexdump_binary;
 
 
 
-create or replace package body hexdump_blob
+create or replace package body hexdump_binary
 is
 
 	/*
@@ -277,6 +277,6 @@ end;
 /
 
 
-show errors package body hexdump_blob;
+show errors package body hexdump_binary;
 
 
