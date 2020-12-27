@@ -44,7 +44,6 @@ is
 
 	type t_hdr_tab is table of t_hdr_row;
 
-
 	function hexdump (text_in clob) return t_hexdump_tab pipelined;
 	function hexdump (hex_cursor t_clob_cursor) return t_hexdump_tab pipelined;
 
@@ -241,10 +240,6 @@ begin
 
 		-- header for each column dumped
 		-- setting all to null causes just the header line to print
-		r_hdr_row.owner_in := null;
-		r_hdr_row.tab_name_in := null;
-		r_hdr_row.col_name_in := null;
-		r_hdr_row.value_in := null;
 
 		for srec in ( select * from  table(dump_hdr(r_hdr_row)))
 		loop

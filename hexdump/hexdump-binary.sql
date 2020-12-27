@@ -1,5 +1,8 @@
 
+@@plsql-init
+
 create or replace package hexdump_binary
+authid current_user
 is
 
 	/*
@@ -15,6 +18,7 @@ is
 		working_data blob
 	);
 
+	type t_blob_cursor is ref cursor return t_blob_row;
 
 	type t_hexdump_row is record (
 		address	varchar2(8),
@@ -25,20 +29,31 @@ is
 	type t_hexdump_tab is table of t_hexdump_row;
 
 	type t_hexdump_cursor is ref cursor return t_hexdump_row;
-	type t_blob_cursor is ref cursor return t_blob_row;
+
+	type t_hdr_row is record (
+		owner_in	varchar2(30) default null,
+		tab_name_in varchar2(30) default null,
+		col_name_in varchar2(30) default null,
+		value_in    varchar2(30) default null
+	);
+
+	type t_hdr_tab is table of t_hdr_row;
 
 	function hexdump (blob_in blob ) return t_hexdump_tab pipelined;
 	function hexdump (hex_cursor t_blob_cursor) return t_hexdump_tab pipelined;
 
+	function dump_hdr (hdr_in t_hdr_row) return t_hexdump_tab pipelined;
+
+	$if $$develop $then
 	function  to_spaced_hex (text_in blob ) return varchar2;
 	function safe_to_print (text_in raw) return varchar2;
+	$end
 
 end;
 /
 
 
 show errors package hexdump_binary;
-
 
 
 create or replace package body hexdump_binary
@@ -144,6 +159,54 @@ when others then
 	raise;
 end;
 
+function dump_hdr (hdr_in t_hdr_row) return t_hexdump_tab pipelined
+is
+	r_hexdump_row t_hexdump_row := t_hexdump_row(null,null,null);
+begin
+	-- header per LONG column
+	r_hexdump_row.address := rpad('=',8,'=');
+	r_hexdump_row.data := rpad('=',48,'=');
+	r_hexdump_row.text := rpad('=',18,'=');
+	pipe row (r_hexdump_row);
+
+	if not (
+		hdr_in.owner_in is null
+		and hdr_in.tab_name_in is null
+		and hdr_in.col_name_in is null
+		and hdr_in.value_in is null
+	) then
+
+		r_hexdump_row.address := 'SCHEMA:';
+		r_hexdump_row.data := substr(nvl(hdr_in.owner_in,user),1,48);
+		r_hexdump_row.text := null;
+		pipe row (r_hexdump_row);
+
+		r_hexdump_row.address := 'TABLE:';
+		r_hexdump_row.data := substr(hdr_in.tab_name_in,1,48);
+		r_hexdump_row.text := null;
+		pipe row (r_hexdump_row);
+
+		r_hexdump_row.address := 'COLUMN:';
+		r_hexdump_row.data := substr(hdr_in.col_name_in,1,48);
+		r_hexdump_row.text := null;
+		pipe row (r_hexdump_row);
+
+		r_hexdump_row.address := 'SEARCH:';
+		r_hexdump_row.data := substr(hdr_in.value_in,1,48);
+		r_hexdump_row.text := null;
+		pipe row (r_hexdump_row);
+
+		r_hexdump_row.address := rpad('=',8,'=');
+		r_hexdump_row.data := rpad('=',48,'=');
+		r_hexdump_row.text := rpad('=',18,'=');
+		pipe row (r_hexdump_row);
+
+	end if;
+
+	return;
+
+end;
+
 
 function hexdump (blob_in blob) return t_hexdump_tab pipelined is
 
@@ -207,6 +270,7 @@ function hexdump (hex_cursor t_blob_cursor) return t_hexdump_tab pipelined is
 	i_dest_offset integer := 1;
 	--i_lang_context integer := dbms_lob.DEFAULT_LANG_CTX ;
 	i_lang_context integer := 0;
+	r_hdr_row t_hdr_row := t_hdr_row(null,null,null,null);
 begin
 
 	loop
@@ -214,6 +278,17 @@ begin
 		fetch hex_cursor into b_working_blob;
 		exit when hex_cursor%notfound ;
 		--dbms_output.put_line('blob len: ' || dbms_lob.getlength(b_working_blob));
+
+		-- header for each column dumped
+		-- setting all to null causes just the header line to print
+		for srec in ( select * from  table(dump_hdr(r_hdr_row)))
+		loop
+			r_hexdump_row.address := srec.address;
+			r_hexdump_row.data := srec.data;
+			r_hexdump_row.text := srec.text;
+			pipe row (r_hexdump_row);
+		end loop;
+
 
 		i_blob_idx := 1;
 
@@ -241,10 +316,10 @@ begin
 			for srec in ( select * from  table(hexdump(r_buf)))
 			loop
 				null;
-			r_hexdump_row.address := srec.address;
-			r_hexdump_row.data := srec.data;
-			r_hexdump_row.text := srec.text;
-			pipe row (r_hexdump_row);
+				r_hexdump_row.address := srec.address;
+				r_hexdump_row.data := srec.data;
+				r_hexdump_row.text := srec.text;
+				pipe row (r_hexdump_row);
 			end loop;
 
 			--exit;
