@@ -106,13 +106,36 @@ $fh->binmode();
 my $blob = <$fh>;
 close $fh;
 
-my $sql = q{insert into blob_test values(1,utl_raw.cast_to_raw(?))};
+my $raw='';
+foreach my $r ( 0..128 ) {
+	$raw .= chr($r);
+}
 
+my $sql = 'delete from binary_test';
+$dbh->do($sql);
+
+$sql = q{insert into binary_test(name,my_blob) values(?, utl_raw.cast_to_raw(?))};
 my $sth = $dbh->prepare($sql);
-$sth->execute( $dbh->quote($blob));
+$sth->execute(q{BLOB}, $dbh->quote($blob));
+
+$sql = q{insert into binary_test(name,my_raw) values(?, utl_raw.cast_to_raw(?))};
+$sth = $dbh->prepare($sql);
+$sth->execute(q{RAW}, $raw);
+
+$sql = q{insert into binary_test(name,my_long_raw) values(?, utl_raw.cast_to_raw(?))};
+$sth = $dbh->prepare($sql);
+$sth->execute(q{LONG RAW}, $raw);
+
 $dbh->commit;
 
 $dbh->disconnect;
+
+$fh = IO::File->new;
+$fh->open('./baseline-raw.data','w') || die "cannot open baseline-raw.data\n";
+$fh->binmode();
+
+$fh->write($raw);
+$fh->close;
 
 sub usage {
 	my $exitVal = shift;
@@ -160,6 +183,12 @@ from v$instance};
 	$sth->execute;
 	($$major,$$minor) = $sth->fetchrow_array;
 
+}
+
+sub dec2bin {
+	my $str = unpack("B32", pack("N", shift));
+	$str =~ s/^0+(?=\d)//;   # otherwise you'll get leading zeros
+	return $str;
 }
 
 

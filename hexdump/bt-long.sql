@@ -9,6 +9,10 @@ col text format a50
 
 spool bt.log
 
+prompt
+prompt !!  selecting from dictionary views will not work correctly in a PDB !!
+prompt
+
 SELECT * FROM  
 TABLE(
 	hexdump.hexdump_long(

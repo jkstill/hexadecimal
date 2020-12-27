@@ -8,8 +8,7 @@ is
 
 	/*
 	$ hexdump -C j.sql
-00000000  
-0a 63 72 65 61 74 65 20  75 73 65 72 20 6a 6b 73  |.create user jks|
+00000000  0a 63 72 65 61 74 65 20  75 73 65 72 20 6a 6b 73  |.create user jks|
 00000010  74 69 6c 6c 20 69 64 65  6e 74 69 66 65 64 20 62  |till identifed b|
 00000020  79 20 67 72 6f 6b 3b 0a  0a                       |y grok;..|
 00000029
@@ -57,6 +56,10 @@ is
 
 	function dump_hdr (hdr_in t_hdr_row) return t_hexdump_tab pipelined;
 
+	procedure show_sql_enable;
+	procedure show_sql_disable;
+	function show_sql return boolean;
+
 	$if $$develop $then
 	function  to_spaced_hex (text_in varchar2) return varchar2;
 	$end
@@ -71,6 +74,26 @@ show errors package hexdump;
 
 create or replace package body hexdump
 is
+
+	b_show_sql boolean := FALSE;
+
+procedure show_sql_enable
+is
+begin
+	b_show_sql := TRUE;
+end;
+
+procedure show_sql_disable
+is
+begin
+	b_show_sql := FALSE;
+end;
+
+function show_sql return boolean
+is
+begin
+	return b_show_sql;
+end;
 
 -- using varchar2 as the length should always be <= 16 clob, <= 32 for blob (hex)
 function  to_spaced_hex (text_in varchar2) return varchar2
@@ -473,7 +496,9 @@ Sections of this function:
 	dbms_output.put_line('v_content: ' || v_content);
 	dbms_output.put_line('v_sql: ' || v_sql);
 	*/
-	--dbms_output.put_line('v_sql: ' || v_sql);
+	if show_sql then
+		dbms_output.put_line('v_sql: ' || v_sql);
+	end if;
 
 	--v_obj_display_name := v_tab_name || '.' || substr(tab_column_in,1,10);
 	v_obj_display_name := tab_owner_in || '.' || v_tab_name ;
@@ -545,6 +570,7 @@ begin
 exception
 when others then
 	dbms_output.put_line(dbms_utility.format_call_stack);
+	dbms_output.put_line ('hexdump_long - line# : '|| dbms_utility.format_error_backtrace || ' - '||sqlerrm);
 	raise;
 end;
 /

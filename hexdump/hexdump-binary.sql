@@ -7,8 +7,7 @@ is
 
 	/*
 	$ hexdump -C j.sql
-00000000  
-0a 63 72 65 61 74 65 20  75 73 65 72 20 6a 6b 73  |.create user jks|
+00000000  0a 63 72 65 61 74 65 20  75 73 65 72 20 6a 6b 73  |.create user jks|
 00000010  74 69 6c 6c 20 69 64 65  6e 74 69 66 65 64 20 62  |till identifed b|
 00000020  79 20 67 72 6f 6b 3b 0a  0a                       |y grok;..|
 00000029
@@ -19,6 +18,12 @@ is
 	);
 
 	type t_blob_cursor is ref cursor return t_blob_row;
+
+	type t_raw_row is record (
+		working_data raw(2000)
+	);
+
+	type t_raw_cursor is ref cursor return t_raw_row;
 
 	type t_hexdump_row is record (
 		address	varchar2(8),
@@ -41,6 +46,8 @@ is
 
 	function hexdump (blob_in blob ) return t_hexdump_tab pipelined;
 	function hexdump (hex_cursor t_blob_cursor) return t_hexdump_tab pipelined;
+
+	function hexdump_raw (hex_cursor t_raw_cursor) return t_hexdump_tab pipelined;
 
 	function dump_hdr (hdr_in t_hdr_row) return t_hexdump_tab pipelined;
 
@@ -69,15 +76,11 @@ is
 function  to_spaced_hex (text_in blob ) return varchar2
 is
 	i_text_len integer := 0;
-	--v_ret_string varchar2(48) := '';
-	v_ret_string varchar2(256) := '';
+	v_ret_string varchar2(50) := '';
 	i_blob_read_sz number := 1;
 	r_buf raw(1); -- must match read size
 	i_blob_offset number := 1;
-	b_working_blob blob;
 begin
-
-	--return 'tsh dummy'; -- testing
 
 	i_text_len := dbms_lob.getlength(text_in);
 
@@ -125,37 +128,49 @@ is
 	i_ascii_val integer;
 	v_chr varchar2(2);
 begin
-	i_text_len := utl_raw.length(text_in);
 
+	i_text_len := utl_raw.length(text_in);
 	--dbms_output.put_line('stp i_text_len: ' || i_text_len);
-	--dbms_output.put_line('stp text: |' || text_in || '|');
 	--return 'stp dummy'; -- testing
 
 	if i_text_len = 0 or i_text_len is null then
 		return '|' || rpad('.',16,'.') || '|';
 	end if;
 
-	--return 'stp dummy'; -- testing
-
 	for i in 1 .. i_text_len
 	loop
-		continue when mod(i,2) = 0;
-		v_chr := substr(text_in,i,2);
-		--i_ascii_val := ascii(v_chr);
-		i_ascii_val := to_number(v_chr,'XX');
-		--dbms_output.put_line('v_chr: ' || v_chr);
-		--dbms_output.put_line('i_ascii_val: ' || to_char(i_ascii_val));
-		if i_ascii_val between 32 and 122 then
-			v_ret_string := v_ret_string || chr(i_ascii_val);
+
+		begin
+			v_chr := utl_raw.cast_to_varchar2(utl_raw.substr(text_in,i,1));
+			--dbms_output.put_line('safe_print loop - v_chr: ' || to_char(ascii(v_chr)));
+			i_ascii_val := ascii(v_chr);
+		exception
+		when others then
+			dbms_output.put_line('stp exception in loop: ' || sqlcode);
+			dbms_output.put_line('i value: ' || i);
+			dbms_output.put_line('i_text_len: ' || i_text_len);
+			dbms_output.put_line('v_chr value: ' || '|' || v_chr || '|');
+			raise;
+		end;
+
+		-- printable ascii values
+		if i_ascii_val between 32 and 126 then
+			v_ret_string := v_ret_string || v_chr;
 		else
 			v_ret_string := v_ret_string || '.';
 		end if;
+
 	end loop;
 
 	return '|' || v_ret_string || '|';
+
 exception
 when others then
 	dbms_output.put_line('stp exception - i_text_len: ' || i_text_len);
+	dbms_output.put_line('stp exception - sqlcode: ' || sqlcode);
+	-- shows the line number of the error
+	dbms_output.put_line ('stp exception - line# : '|| dbms_utility.format_error_backtrace || ' - '||sqlerrm);
+	--return 'stp exception';	
 	raise;
 end;
 
@@ -210,19 +225,21 @@ end;
 
 function hexdump (blob_in blob) return t_hexdump_tab pipelined is
 
-	b_working_blob blob;
 	i_blob_len integer := 0;
 	i_blob_chunksize integer := 16;
 	i_blob_chunk blob;
 	r_hexdump_row t_hexdump_row := t_hexdump_row(null,null,null);
 	v_hex_address varchar2(8);
+	i_loop_count integer := 1;
+	r_text raw(16);
 begin
 
-	--b_working_blob := blob_in;
 	i_blob_len := dbms_lob.getlength(blob_in);
+	--dbms_output.put_line('i_blob_len: ' || to_char(i_blob_len));
 
 	if (not i_blob_len > 0) then
 		pipe row (r_hexdump_row);
+		--dbms_output.put_line('early exit hexdump(blob_in)');
 		return;
 	end if;
 
@@ -232,18 +249,24 @@ begin
 		i_blob_chunk := dbms_lob.substr(blob_in,i_blob_chunksize, i_blob_idx);
 		--dbms_output.put_line('hexdump: ' || length(utl_raw.cast_to_varchar2(i_blob_chunk)));
 
+		-- for testing
+		--exit when i_loop_count > 10;
+		i_loop_count := i_loop_count + 1;
+
 		-- exit loop when 
 		if i_blob_idx >= i_blob_len then
+			--dbms_output.put_line('exit hexdump(blob_in) due to i_blob_idx');
 			exit;
 		end if;
 
 		r_hexdump_row.address := lpad(trim(to_char(i_blob_idx-1,'XXXXXXXX')),8,0);
 
-		--r_hexdump_row.data := to_spaced_hex(utl_raw.cast_to_varchar2(i_blob_chunk),true);
 		r_hexdump_row.data := to_spaced_hex(i_blob_chunk);
 
 		--r_hexdump_row.text := 'testing';
-		r_hexdump_row.text := safe_to_print(i_blob_chunk);
+		r_text := dbms_lob.substr(i_blob_chunk,i_blob_chunksize,1);
+		--dbms_output.put_line('r_text: ' || r_text);
+		r_hexdump_row.text := safe_to_print(r_text);
 
 		pipe row (r_hexdump_row);
 
@@ -322,17 +345,69 @@ begin
 				pipe row (r_hexdump_row);
 			end loop;
 
-			--exit;
-
 		end loop;
-		--*/
 
 	end loop;
 
-	--dbms_lob.filecloseall;
-
 	return;
 
+
+exception
+when others then
+	dbms_output.put_line('hexdump(blob_in)');
+	dbms_output.put_line(dbms_utility.format_call_stack);
+	raise;
+
+end;
+
+function hexdump_raw (hex_cursor t_raw_cursor) return t_hexdump_tab pipelined is
+	r_hexdump_row t_hexdump_row := t_hexdump_row(null,null,null);
+
+	i_pad_char integer := 88; -- X
+	i_blob_read_sz number := 32767;
+	r_buf raw(32767); -- must match read size
+	i_blob_offset number := 1;
+	r_working_raw raw(2000);
+	b_working_raw raw(2000);
+	b_working_blob blob;
+	i_convert_warning integer;
+	i_src_offset integer := 1;
+	i_dest_offset integer := 1;
+	--i_lang_context integer := dbms_lob.DEFAULT_LANG_CTX ;
+	i_lang_context integer := 0;
+	r_hdr_row t_hdr_row := t_hdr_row(null,null,null,null);
+begin
+
+	i_blob_idx := 1;
+	loop
+		
+		fetch hex_cursor into r_working_raw;
+		b_working_blob := r_working_raw;
+
+		exit when hex_cursor%notfound ;
+		--dbms_output.put_line('blob len: ' || dbms_lob.getlength(b_working_blob));
+
+		-- header for each column dumped
+		-- setting all to null causes just the header line to print
+		for srec in ( select * from  table(dump_hdr(r_hdr_row)))
+		loop
+			r_hexdump_row.address := srec.address;
+			r_hexdump_row.data := srec.data;
+			r_hexdump_row.text := srec.text;
+			pipe row (r_hexdump_row);
+		end loop;
+
+		for srec in ( select * from  table(hexdump(b_working_blob)))
+		loop
+			r_hexdump_row.address := srec.address;
+			r_hexdump_row.data := srec.data;
+			r_hexdump_row.text := srec.text;
+			pipe row (r_hexdump_row);
+		end loop;
+
+	end loop;
+
+	return;
 
 exception
 when others then
