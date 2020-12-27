@@ -9,6 +9,6 @@ select line, text
 from dba_source
 where owner = 'JKSTILL'
 and type = 'PACKAGE BODY'
-and name = 'HEXDUMP_BLOB'
+and name = 'HEXDUMP'
 order by name,type,line
 /
