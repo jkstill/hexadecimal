@@ -19,9 +19,13 @@ is
 		working_text clob
 	);
 
+	type t_clob_cursor is ref cursor return t_clob_row;
+
 	type t_long_row is record (
 		working_text long
 	);
+
+	type t_long_cursor is ref cursor return t_long_row;
 
 	type t_hexdump_row is record (
 		address	varchar2(8),
@@ -31,10 +35,15 @@ is
 
 	type t_hexdump_tab is table of t_hexdump_row;
 
-	type t_hexdump_cursor is ref cursor return t_hexdump_row;
+	type t_hdr_row is record (
+		owner_in	varchar2(30) default null,
+		tab_name_in varchar2(30) default null,
+		col_name_in varchar2(30) default null,
+		value_in    varchar2(30) default null
+	);
 
-	type t_clob_cursor is ref cursor return t_clob_row;
-	type t_long_cursor is ref cursor return t_long_row;
+	type t_hdr_tab is table of t_hdr_row;
+
 
 	function hexdump (text_in clob) return t_hexdump_tab pipelined;
 	function hexdump (hex_cursor t_clob_cursor) return t_hexdump_tab pipelined;
@@ -46,6 +55,8 @@ is
 		where_clause_in varchar2, -- include the entire clause - correct quoting may be a challenge
 		where_bind_val sys.anydata default null
 	) return t_hexdump_tab pipelined;
+
+	function dump_hdr (hdr_in t_hdr_row) return t_hexdump_tab pipelined;
 
 	$if $$develop $then
 	function  to_spaced_hex (text_in varchar2) return varchar2;
@@ -120,6 +131,54 @@ begin
 	return '|' || v_ret_string || '|';
 end;
 
+function dump_hdr (hdr_in t_hdr_row) return t_hexdump_tab pipelined
+is
+	r_hexdump_row t_hexdump_row := t_hexdump_row(null,null,null);
+begin
+	-- header per LONG column
+	r_hexdump_row.address := rpad('=',8,'=');
+	r_hexdump_row.data := rpad('=',48,'=');
+	r_hexdump_row.text := rpad('=',18,'=');
+	pipe row (r_hexdump_row);
+
+	if not (
+		hdr_in.owner_in is null
+		and hdr_in.tab_name_in is null
+		and hdr_in.col_name_in is null
+		and hdr_in.value_in is null
+	) then
+
+		r_hexdump_row.address := 'SCHEMA:';
+		r_hexdump_row.data := substr(nvl(hdr_in.owner_in,user),1,48);
+		r_hexdump_row.text := null;
+		pipe row (r_hexdump_row);
+
+		r_hexdump_row.address := 'TABLE:';
+		r_hexdump_row.data := substr(hdr_in.tab_name_in,1,48);
+		r_hexdump_row.text := null;
+		pipe row (r_hexdump_row);
+
+		r_hexdump_row.address := 'COLUMN:';
+		r_hexdump_row.data := substr(hdr_in.col_name_in,1,48);
+		r_hexdump_row.text := null;
+		pipe row (r_hexdump_row);
+
+		r_hexdump_row.address := 'SEARCH:';
+		r_hexdump_row.data := substr(hdr_in.value_in,1,48);
+		r_hexdump_row.text := null;
+		pipe row (r_hexdump_row);
+
+		r_hexdump_row.address := rpad('=',8,'=');
+		r_hexdump_row.data := rpad('=',48,'=');
+		r_hexdump_row.text := rpad('=',18,'=');
+		pipe row (r_hexdump_row);
+
+	end if;
+
+	return;
+
+end;
+
 
 function hexdump (text_in clob) return t_hexdump_tab pipelined is
 
@@ -168,17 +227,33 @@ begin
 end;
 
 
---function hexdump (hex_cursor t_hexdump_cursor ) return t_hexdump_tab pipelined is
 function hexdump (hex_cursor t_clob_cursor ) return t_hexdump_tab pipelined is
 	r_hexdump_row t_hexdump_row := t_hexdump_row(null,null,null);
 
 	c_working_text clob;
+	r_hdr_row t_hdr_row := t_hdr_row(null,null,null,null);
 begin
 
 	loop
 		
 		fetch hex_cursor into c_working_text;
 		exit when hex_cursor%notfound ;
+
+		-- header for each column dumped
+		-- setting all to null causes just the header line to print
+		r_hdr_row.owner_in := null;
+		r_hdr_row.tab_name_in := null;
+		r_hdr_row.col_name_in := null;
+		r_hdr_row.value_in := null;
+
+		for srec in ( select * from  table(dump_hdr(r_hdr_row)))
+		loop
+			r_hexdump_row.address := srec.address;
+			r_hexdump_row.data := srec.data;
+			r_hexdump_row.text := srec.text;
+			pipe row (r_hexdump_row);
+		end loop;
+
 	
 		for srec in ( select * from  table(hexdump(c_working_text)))
 		loop
@@ -289,6 +364,9 @@ is
 
 	v_tab_name varchar2(30);
 	v_obj_display_name varchar2(42);
+	v_print_val varchar2(18);
+	tab_hdr_tab t_hdr_tab;
+	r_hdr_row t_hdr_row := t_hdr_row(null,null,null,null);
 
 begin
 
@@ -370,12 +448,15 @@ Sections of this function:
 	-- get the bind value from anydata to whatever is required
 	v_content := SYS.ANYDATA.getTypeName(where_bind_val);
 
+	v_print_val := 'NA';
 	if v_content = 'SYS.VARCHAR2' then
 		v_bind_val := sys.anydata.accessVarchar2(where_bind_val);
-		dbms_output.put_line('bind varchar2: ' || v_bind_val);
+		v_print_val := substr(v_bind_val,1,18);
+		--dbms_output.put_line('bind varchar2: ' || v_bind_val);
 		dbms_sql.bind_variable(csr_id, ':b', v_bind_val);
 	elsif v_content =  'SYS.NUMBER' then
 		n_bind_val := sys.anydata.accessNumber(where_bind_val);
+		v_print_val := substr(to_char(v_bind_val),1,18);
 		--dbms_output.put_line('bind number: ' || to_char(n_bind_val));
 		--dbms_output.put_line('v_sql: ' || v_sql);
 		dbms_sql.bind_variable(csr_id, ':b', n_bind_val);
@@ -397,9 +478,10 @@ Sections of this function:
 	dbms_output.put_line('v_content: ' || v_content);
 	dbms_output.put_line('v_sql: ' || v_sql);
 	*/
-	dbms_output.put_line('v_sql: ' || v_sql);
+	--dbms_output.put_line('v_sql: ' || v_sql);
 
-	v_obj_display_name := v_tab_name || '.' || substr(tab_column_in,1,10);
+	--v_obj_display_name := v_tab_name || '.' || substr(tab_column_in,1,10);
+	v_obj_display_name := tab_owner_in || '.' || v_tab_name ;
 
 	i_rows := dbms_sql.execute(csr_id); 
 	loop -- [ fetch rows
@@ -410,35 +492,21 @@ Sections of this function:
 		i_rows := dbms_sql.fetch_rows(csr_id); 
 		exit when i_rows < 1;
 
-		-- header per LONG column
-		r_hexdump_row.address := rpad('=',8,'=');
-		r_hexdump_row.data := rpad('=',48,'=');
-		r_hexdump_row.text := rpad('=',18,'=');
-		pipe row (r_hexdump_row);
+		-- header for each LONG column
+		r_hdr_row.owner_in := substr(tab_owner_in,1,30);
+		r_hdr_row.tab_name_in := substr(tab_name_in,1,30);
+		r_hdr_row.col_name_in := substr(tab_column_in,1,30);
+		r_hdr_row.value_in := v_print_val;
 
-		r_hexdump_row.address := 'SCHEMA:';
-		r_hexdump_row.data := substr(tab_owner_in,1,48);
-		r_hexdump_row.text := substr(tab_name_in,1,18);
-		pipe row (r_hexdump_row);
+		--dbms_output.put_line('v_print_val: ' || v_print_val);
 
-		r_hexdump_row.address := 'VALUE:';
-		r_hexdump_row.data := tab_column_in;
-
-		if v_content = 'SYS.VARCHAR2' then
-			r_hexdump_row.text := substr(v_bind_val,1,18);
-		elsif v_content = 'SYS.NUMBER' then
-			r_hexdump_row.text := to_char(n_bind_val);
-		elsif v_content = 'SYS.DATE' then
-			r_hexdump_row.text := 'DATE NA';
-		elsif v_content = 'SYS.TIMESTAMP' then
-			r_hexdump_row.text := 'TIMESTAMP NA';
-		end if;
-		pipe row (r_hexdump_row);
-
-		r_hexdump_row.address := rpad('=',8,'=');
-		r_hexdump_row.data := rpad('=',48,'=');
-		r_hexdump_row.text := rpad('=',18,'=');
-		pipe row (r_hexdump_row);
+		for srec in ( select * from  table(dump_hdr(r_hdr_row)))
+		loop
+			r_hexdump_row.address := srec.address;
+			r_hexdump_row.data := srec.data;
+			r_hexdump_row.text := srec.text;
+			pipe row (r_hexdump_row);
+		end loop;
 
 		--dbms_output.put_line('i_rows:' || r_hexdump_row.data );
 
