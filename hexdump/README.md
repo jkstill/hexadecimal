@@ -47,6 +47,11 @@ Java could be used, I just haven't done it yet.
 
 [LONG RAW Length from Java](https://stackoverflow.com/questions/5497238/get-the-length-of-a-long-raw)
 
+A possibility would be to use Java to read the LONG RAW into an array of raw (hex) data.
+Then pass the array back to PL/SQL for processing.
+
+[How to return an array from Java to PL/SQL?](https://stackoverflow.com/questions/7872688/how-to-return-an-array-from-java-to-pl-sql)
+
 Really, a BLOB should be used, rather than a LONG RAW.
 
 But saying that does not help when one must work with what is supplied, and sometimes that is a LONG RAW.
