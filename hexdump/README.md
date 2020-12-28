@@ -35,6 +35,21 @@ The hexdump_binary package currently supports these data types:
 
 There is not yet any support for LONG RAW.
 
+In PL/SQL a LONG RAW can be manipulated as longs it the size is 32767 bytes or less.
+
+This is quite limiting, as a LONG RAW may be up to 2G in size.
+
+[Manipulate LONG RAW in PL/SQL](https://asktom.oracle.com/pls/apex/f?p=100:11:0::::P11_QUESTION_ID:201012348073)
+
+Even though that is a 20 year old thread at this time, the situation has not changed.
+
+Java could be used, I just haven't done it yet.
+
+[LONG RAW Length from Java](https://stackoverflow.com/questions/5497238/get-the-length-of-a-long-raw)
+
+Really, a BLOB should be used, rather than a LONG RAW.
+
+But saying that does not help when one must work with what is supplied, and sometimes that is a LONG RAW.
 
 # Using the hexdump package
 

@@ -3,7 +3,7 @@
 use warnings;
 use strict;
 use FileHandle;
-use DBI;
+use DBI qw(:sql_types);
 use Getopt::Long;
 use IO::File;
 use Data::Dumper;
@@ -108,8 +108,13 @@ close $fh;
 
 my $raw='';
 foreach my $r ( 0..128 ) {
-	$raw .= chr($r);
+	$raw .= pack("C", $r);
 }
+
+my $hexRaw = unpack('H*',$raw);
+
+#print "$hexRaw\n";
+#exit;
 
 my $sql = 'delete from binary_test';
 $dbh->do($sql);
@@ -118,13 +123,22 @@ $sql = q{insert into binary_test(name,my_blob) values(?, utl_raw.cast_to_raw(?))
 my $sth = $dbh->prepare($sql);
 $sth->execute(q{BLOB}, $dbh->quote($blob));
 
-$sql = q{insert into binary_test(name,my_raw) values(?, utl_raw.cast_to_raw(?))};
+$sql = q{insert into binary_test(name,my_raw) values(?, ?)};
 $sth = $dbh->prepare($sql);
-$sth->execute(q{RAW}, $raw);
+$sth->execute(q{RAW}, $hexRaw);
 
-$sql = q{insert into binary_test(name,my_long_raw) values(?, utl_raw.cast_to_raw(?))};
+my $longRaw;
+foreach my $i ( 1..9000 ) { $longRaw .= $raw }
+
+
+$sql = q{insert into binary_test(name,my_long_raw) values(?, ?)};
 $sth = $dbh->prepare($sql);
-$sth->execute(q{LONG RAW}, $raw);
+$sth->execute(q{LONG RAW}, $hexRaw);
+
+$sth = $dbh->prepare($sql);
+$sth->bind_param(1, q{VERY LONG RAW});
+$sth->bind_param(2, $longRaw, SQL_LONGVARBINARY);
+$sth->execute();
 
 $dbh->commit;
 
