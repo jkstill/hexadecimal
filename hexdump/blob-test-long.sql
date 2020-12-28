@@ -7,7 +7,7 @@ set long 20000
 
 col text format a50
 
-spool bt.log
+spool bt-long.log
 
 prompt
 prompt !!  selecting from dictionary views will not work correctly in a PDB !!

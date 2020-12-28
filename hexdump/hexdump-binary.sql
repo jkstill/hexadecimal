@@ -51,6 +51,8 @@ is
 
 	function dump_hdr (hdr_in t_hdr_row) return t_hexdump_tab pipelined;
 
+	procedure set_i_blob_idx(idx_in pls_integer);
+
 	$if $$develop $then
 	function  to_spaced_hex (text_in blob ) return varchar2;
 	function safe_to_print (text_in raw) return varchar2;
@@ -71,6 +73,12 @@ is
 		calls to hexdump(blob) in 32 k chunks
 	*/
 	i_blob_idx binary_integer;
+
+	procedure set_i_blob_idx(idx_in pls_integer)
+	is
+	begin
+		i_blob_idx := idx_in;
+	end;
 
 -- using varchar2 as the length should always be <= 16 clob, <= 32 for blob (hex)
 function  to_spaced_hex (text_in blob ) return varchar2
@@ -239,7 +247,7 @@ begin
 
 	if (not i_blob_len > 0) then
 		pipe row (r_hexdump_row);
-		--dbms_output.put_line('early exit hexdump(blob_in)');
+		dbms_output.put_line('early exit hexdump(blob_in)');
 		return;
 	end if;
 
@@ -260,10 +268,11 @@ begin
 		end if;
 
 		r_hexdump_row.address := lpad(trim(to_char(i_blob_idx-1,'XXXXXXXX')),8,0);
+		--dbms_output.put_line('row_address: ' || r_hexdump_row.address);
 
 		r_hexdump_row.data := to_spaced_hex(i_blob_chunk);
 
-		--r_hexdump_row.text := 'testing';
+		r_hexdump_row.text := 'testing';
 		r_text := dbms_lob.substr(i_blob_chunk,i_blob_chunksize,1);
 		--dbms_output.put_line('r_text: ' || r_text);
 		r_hexdump_row.text := safe_to_print(r_text);
