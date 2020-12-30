@@ -2,6 +2,21 @@
 Hexdump for Oracle
 ==================
 
+# LONG RAW
+
+I was looking at using Java in the database to dump LONG RAW.
+
+See example code from older oracle docs in ./java/README.md
+
+There is a working example of using Java with PIPELINED back to SQL.
+
+For now though I am leaving off with this, as it is quite a bit more effort.
+
+If you really need to dump a LONG RAW, see `long-raw-hexdump.pl`
+
+
+## continue...
+
 Having wanted a hexdump for oracle for some time, I finally put one together.
 
 There are 2 packages
