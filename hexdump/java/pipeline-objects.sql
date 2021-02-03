@@ -9,7 +9,7 @@ CREATE TABLE StockTable (
 -- Create the types for the table function's output collection 
 -- and collection elements
 
-CREATE TYPE TickerType AS OBJECT
+CREATE  TYPE TickerType AS OBJECT
 (
   ticker VARCHAR2(4),
   PriceType VARCHAR2(1),
@@ -17,18 +17,18 @@ CREATE TYPE TickerType AS OBJECT
 );
 /
 
-CREATE TYPE TickerTypeSet AS TABLE OF TickerType;
+CREATE  TYPE TickerTypeSet AS TABLE OF TickerType;
 /
 
 -- Define the ref cursor type
 
-CREATE PACKAGE refcur_pkg IS
+CREATE or replace PACKAGE refcur_pkg IS
   TYPE refcur_t IS REF CURSOR RETURN StockTable%ROWTYPE;
 END refcur_pkg;
 /
 
 -- Create table function
 
-CREATE FUNCTION StockPivot(p refcur_pkg.refcur_t) RETURN TickerTypeSet
+CREATE or replace FUNCTION StockPivot(p refcur_pkg.refcur_t) RETURN TickerTypeSet
 PIPELINED USING StockPivotImpl;
 /
