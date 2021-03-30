@@ -184,7 +184,13 @@ end;
 
 function dump_hdr (hdr_in t_hdr_row) return t_hexdump_tab pipelined
 is
+
+	$if dbms_db_version.version < 18 $then
+	r_hexdump_row t_hexdump_row ;
+	$else
 	r_hexdump_row t_hexdump_row := t_hexdump_row(null,null,null);
+	$end
+
 begin
 	-- header per LONG column
 	r_hexdump_row.address := rpad('=',8,'=');
@@ -236,11 +242,23 @@ function hexdump (blob_in blob) return t_hexdump_tab pipelined is
 	i_blob_len integer := 0;
 	i_blob_chunksize integer := 16;
 	i_blob_chunk blob;
+
+	$if dbms_db_version.version < 18 $then
+	r_hexdump_row t_hexdump_row ;
+	$else
 	r_hexdump_row t_hexdump_row := t_hexdump_row(null,null,null);
+	$end
+
 	v_hex_address varchar2(8);
 	i_loop_count integer := 1;
 	r_text raw(16);
 begin
+
+	$if dbms_db_version.version < 18 $then
+	r_hexdump_row.address := null;
+	r_hexdump_row.data := null;
+	r_hexdump_row.text := null;
+	$end
 
 	i_blob_len := dbms_lob.getlength(blob_in);
 	--dbms_output.put_line('i_blob_len: ' || to_char(i_blob_len));
@@ -290,7 +308,14 @@ end;
 
 
 function hexdump (hex_cursor t_blob_cursor) return t_hexdump_tab pipelined is
+
+	$if dbms_db_version.version < 18 $then
+	r_hexdump_row t_hexdump_row ;
+	r_hdr_row t_hdr_row;
+	$else
 	r_hexdump_row t_hexdump_row := t_hexdump_row(null,null,null);
+	r_hdr_row t_hdr_row := t_hdr_row(null,null,null,null);
+	$end
 
 	i_pad_char integer := 88; -- X
 	i_blob_read_sz number := 32767;
@@ -302,8 +327,18 @@ function hexdump (hex_cursor t_blob_cursor) return t_hexdump_tab pipelined is
 	i_dest_offset integer := 1;
 	--i_lang_context integer := dbms_lob.DEFAULT_LANG_CTX ;
 	i_lang_context integer := 0;
-	r_hdr_row t_hdr_row := t_hdr_row(null,null,null,null);
 begin
+
+	$if dbms_db_version.version < 18 $then
+	r_hexdump_row.address := null;
+	r_hexdump_row.data := null;
+	r_hexdump_row.text := null;
+
+	r_hdr_row.owner_in		:= null;
+	r_hdr_row.tab_name_in 	:= null;
+	r_hdr_row.col_name_in 	:= null;
+	r_hdr_row.value_in    	:= null;
+	$end
 
 	loop
 		
@@ -370,7 +405,14 @@ when others then
 end;
 
 function hexdump_raw (hex_cursor t_raw_cursor) return t_hexdump_tab pipelined is
+
+	$if dbms_db_version.version < 18 $then
+	r_hexdump_row t_hexdump_row ;
+	r_hdr_row t_hdr_row;
+	$else
 	r_hexdump_row t_hexdump_row := t_hexdump_row(null,null,null);
+	r_hdr_row t_hdr_row := t_hdr_row(null,null,null,null);
+	$end
 
 	i_pad_char integer := 88; -- X
 	i_blob_read_sz number := 32767;
@@ -384,8 +426,18 @@ function hexdump_raw (hex_cursor t_raw_cursor) return t_hexdump_tab pipelined is
 	i_dest_offset integer := 1;
 	--i_lang_context integer := dbms_lob.DEFAULT_LANG_CTX ;
 	i_lang_context integer := 0;
-	r_hdr_row t_hdr_row := t_hdr_row(null,null,null,null);
 begin
+
+	$if dbms_db_version.version < 18 $then
+	r_hexdump_row.address := null;
+	r_hexdump_row.data := null;
+	r_hexdump_row.text := null;
+
+	r_hdr_row.owner_in		:= null;
+	r_hdr_row.tab_name_in 	:= null;
+	r_hdr_row.col_name_in 	:= null;
+	r_hdr_row.value_in    	:= null;
+	$end
 
 	i_blob_idx := 1;
 	loop
