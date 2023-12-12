@@ -1,7 +1,7 @@
 
 
 set serveroutput on format wrapped size unlimited
-set linesize 200 trimspool on
+set linesize 250 trimspool on
 set pagesize 0
 set long 20000
 
