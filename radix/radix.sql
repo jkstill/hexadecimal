@@ -16,6 +16,8 @@ is
 	function to_36( p_dec in number ) return varchar2;
 	function to_32( p_dec in number ) return varchar2;
 	function to_64( p_dec in number ) return varchar2;
+	function bitor( x in integer, y in integer) return integer;
+	function bitxor( x in integer, y in integer) return integer;
 
 	--pragma restrict_references( to_base, wnds, rnds, wnps, rnps );
 	--pragma restrict_references( to_dec, wnds, rnds, wnps, rnps );
@@ -153,6 +155,19 @@ is
 	begin
 		return to_base( p_dec, 64 );
 	end to_64;
+
+	function bitor( x in integer, y in integer) return integer
+	is
+	begin
+		return (x + y) - bitand(x,y);
+	end;
+
+	function bitxor( x in integer, y in integer) return integer
+	is
+	begin
+		return (x + y) - ( bitand(x, y) * 2 );
+	end;
+
 
 begin
 	hex_debug := false;

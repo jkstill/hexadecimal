@@ -155,8 +155,15 @@ end;
 
 function dump_hdr (hdr_in t_hdr_row) return t_hexdump_tab pipelined
 is
+
+	$if dbms_db_version.version < 18 $then
+	r_hexdump_row t_hexdump_row ;
+	$else
 	r_hexdump_row t_hexdump_row := t_hexdump_row(null,null,null);
+	$end
+
 begin
+
 	-- header per LONG column
 	r_hexdump_row.address := rpad('=',8,'=');
 	r_hexdump_row.data := rpad('=',48,'=');
@@ -210,9 +217,21 @@ function hexdump (text_in clob) return t_hexdump_tab pipelined is
 	i_text_idx integer := 0;
 	i_text_chunksize integer := 16;
 	i_text_chunk varchar2(16);
+
+	$if dbms_db_version.version < 18 $then
+	r_hexdump_row t_hexdump_row ;
+	$else
 	r_hexdump_row t_hexdump_row := t_hexdump_row(null,null,null);
+	$end
+
 	v_hex_address varchar2(8);
 begin
+
+	$if dbms_db_version.version < 18 $then
+	r_hexdump_row.address := null;
+	r_hexdump_row.data := null;
+	r_hexdump_row.text := null;
+	$end
 
 	c_working_text := text_in;
 	i_text_len := dbms_lob.getlength(c_working_text);
@@ -250,11 +269,28 @@ end;
 
 
 function hexdump (hex_cursor t_clob_cursor ) return t_hexdump_tab pipelined is
+
+	$if dbms_db_version.version < 18 $then
+	r_hexdump_row t_hexdump_row ;
+	r_hdr_row t_hdr_row;
+	$else
 	r_hexdump_row t_hexdump_row := t_hexdump_row(null,null,null);
+	r_hdr_row t_hdr_row := t_hdr_row(null,null,null,null);
+	$end
 
 	c_working_text clob;
-	r_hdr_row t_hdr_row := t_hdr_row(null,null,null,null);
 begin
+
+	$if dbms_db_version.version < 18 $then
+	r_hexdump_row.address := null;
+	r_hexdump_row.data := null;
+	r_hexdump_row.text := null;
+
+	r_hdr_row.owner_in		:= null;
+	r_hdr_row.tab_name_in 	:= null;
+	r_hdr_row.col_name_in 	:= null;
+	r_hdr_row.value_in    	:= null;
+	$end
 
 	loop
 		
@@ -362,7 +398,15 @@ function hexdump_long (
 ) return t_hexdump_tab pipelined
 is
 	-- the PIPE ROW data
+
+	$if dbms_db_version.version < 18 $then
+	r_hexdump_row t_hexdump_row ;
+	r_hdr_row t_hdr_row ;
+	$else
 	r_hexdump_row t_hexdump_row := t_hexdump_row(null,null,null);
+	r_hdr_row t_hdr_row := t_hdr_row(null,null,null,null);
+	$end
+
 	c_working_text clob;
 	i_plen  integer := 16384;
 	i_rsiz  integer := 16384;
@@ -384,7 +428,6 @@ is
 	v_obj_display_name varchar2(42);
 	v_print_val varchar2(18);
 	tab_hdr_tab t_hdr_tab;
-	r_hdr_row t_hdr_row := t_hdr_row(null,null,null,null);
 
 begin
 
@@ -397,7 +440,7 @@ Sections of this function:
 - Parse the SQL statement
 - Determine type of anydata bind that was passed
 - Bind the value to the cursor
-- Execute and fetch rows
+- Execute and fetch rows	:= null;
 - Pipe Row the output
 
 */
