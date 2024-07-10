@@ -18,6 +18,7 @@ is
 	function to_64( p_dec in number ) return varchar2;
 	function bitor( x in integer, y in integer) return integer;
 	function bitxor( x in integer, y in integer) return integer;
+	function num_format(v_num in varchar2, v_num_type in varchar2 ) return varchar2;
 
 	--pragma restrict_references( to_base, wnds, rnds, wnps, rnps );
 	--pragma restrict_references( to_dec, wnds, rnds, wnps, rnps );
@@ -120,22 +121,61 @@ is
 		return l_num;
 	end to_dec;
 
+	-- for bin, oct, hex at this time
+	function num_format(v_num in varchar2, v_num_type in varchar2 ) return varchar2
+	is
+		v_fmt_formatted varchar2(64);
+		i_fmt_length pls_integer;
+		i_fmt_radix pls_integer;
+		v_type_internal varchar2(20);
+		v_zero_pad varchar2(100) := rpad('0',100,'0');
+		i_substr_len pls_integer;
+	begin
+		
+		v_type_internal := upper(v_num_type);
+
+		case
+			when v_type_internal = 'HEX' then i_fmt_radix := 2;
+			when v_type_internal = 'OCT' then i_fmt_radix := 3;
+			when v_type_internal = 'BIN' then i_fmt_radix := 4;
+			else raise_application_error(-20001, 'unrecogized type: ' || v_num_type );
+		end case;
+
+		i_fmt_length := length(v_num);
+
+		if mod(i_fmt_length,i_fmt_radix) = 0 then
+			i_substr_len := i_fmt_length;
+		else
+			i_substr_len :=  i_fmt_length + (i_fmt_radix - mod(i_fmt_length,i_fmt_radix));
+		end if;
+
+		v_fmt_formatted := substr(v_zero_pad || v_num,i_substr_len*-1);
+
+		if hex_debug then
+			p('i_substr_len: ' || to_char(i_substr_len));
+			p('-i_substr_len: ' || to_char(-1*i_substr_len));
+		end if;
+
+		return v_fmt_formatted;
+
+	end num_format;
+
 	function to_hex( p_dec in number ) return varchar2
 	is
 	begin
-		return to_base( p_dec, 16 );
+		return num_format(to_base( p_dec, 16 ),'HEX');
 	end to_hex;
 
 	function to_bin( p_dec in number ) return varchar2
 	is
 	begin
-		return to_base( p_dec, 2 );
+		return  num_format(to_base( p_dec, 2 ),'BIN');
 	end to_bin;
 
 	function to_oct( p_dec in number ) return varchar2
 	is
 	begin
-		return to_base( p_dec, 8 );
+		return num_format(to_base( p_dec, 8 ),'OCT');
 	end to_oct;
 
 	function to_36( p_dec in number ) return varchar2
@@ -160,13 +200,13 @@ is
 	is
 	begin
 		return (x + y) - bitand(x,y);
-	end;
+	end bitor;
 
 	function bitxor( x in integer, y in integer) return integer
 	is
 	begin
 		return (x + y) - ( bitand(x, y) * 2 );
-	end;
+	end bitxor;
 
 
 begin
