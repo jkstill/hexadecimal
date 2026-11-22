@@ -73,16 +73,18 @@ But saying that does not help when one must work with what is supplied, and some
 
 # Using the hexdump package
 
+For the following examples, run the script `test-views.sql` to create a test table with some CLOB data.
+
 ## calling directly
 
 ```text
 SQL# l
-  1* SELECT * FROM  TABLE(hexdump.hexdump('this is a test'))
+  1* SELECT * FROM  TABLE(hexdump.hexdump('ABCDEFGHIJKLMNOP'))
 SQL# /
 
 ADDRESS  DATA                                             TEXT
 -------- ------------------------------------------------ ------------------
-00000000 74 68 69 73 20 69 73 20 61 20 74 65 73 74        this is a test
+00000000 41 42 43 44 45 46 47 48 49 4A 4B 4C 4D 4E 4F 50  |ABCDEFGHIJKLMNOP|
 
 1 row selected.
 ```
@@ -129,6 +131,8 @@ This package is intended more as a troubleshooting tool than an application tool
 
 Nonetheless, some care was taken to minimize the possibility of SQL Injection.
 
+Create the test table via `create-long-test-table.sql`
+
 The data is just a long string of '='.
 
 ```text
@@ -163,8 +167,10 @@ SEARCH:  jkstill
 ...
 
 256 rows selected.
-
 ```
+
+The sql script `blob-test-long.sql` has the above example.
+
 # Using the hexdump_binary package
 
 ## calling directly
@@ -312,7 +318,7 @@ This creates the package `hexdump`
 
 ### hexdump-binary.sql
 
-This creates the package `hexdump_binaryb`
+This creates the package `hexdump_binary`
 
 ###  blob-load.pl
 
