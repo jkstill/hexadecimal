@@ -9,7 +9,7 @@ begin
     for rec in (select id from hxatp_fixture order by id) loop
         offset_bytes := 0;
         headers := 0;
-        for line in (select address,data,text from table(hxatp_dump.hexdump_long_raw(
+        for line in (select address,data,text from table(hexdump_binary.hexdump_long_raw(
             'HXATP_FIXTURE',null,'PAYLOAD','where id = :b',sys.anydata.convertnumber(rec.id)))) loop
             if line.address = '========' then
                 if headers <> 0 or offset_bytes <> 0 then raise_application_error(-20000,'unexpected header'); end if;

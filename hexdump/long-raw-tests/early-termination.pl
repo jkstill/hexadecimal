@@ -1,7 +1,7 @@
 use strict; use warnings; use DBI; $|=1;
 # Early termination and session reuse while a large single-row dump is active.
 my $db = DBI->connect("dbi:Oracle:$ENV{ORACLE_TEST_DB}",$ENV{ORACLE_TEST_USER},$ENV{ORACLE_TEST_PASSWORD},{RaiseError=>1,PrintError=>0,RowCacheSize=>100});
-my $src = q{table(hxatp_dump.hexdump_long_raw('HXATP_FIXTURE',null,'PAYLOAD','where id = :b',sys.anydata.convertvarchar2('2097153')))};
+my $src = q{table(hexdump_binary.hexdump_long_raw('HXATP_FIXTURE',null,'PAYLOAD','where id = :b',sys.anydata.convertvarchar2('2097153')))};
 my $pga = q{select round(value/1048576,1) from v$mystat m join v$statname n using (statistic#) where n.name = 'session pga memory max'};
 for (1..2) {
     my $rows = $db->selectall_arrayref("select address from $src where rownum <= 2");

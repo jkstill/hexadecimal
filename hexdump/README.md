@@ -6,10 +6,6 @@ Hexdump for Oracle
 
 I was looking at using Java in the database to dump LONG RAW.
 
-See example code from older oracle docs in ./java/README.md
-
-There is a working example of using Java with PIPELINED back to SQL.
-
 For now though I am leaving off with this, as it is quite a bit more effort.
 
 If you really need to dump a LONG RAW, see `long-raw-hexdump.pl`
@@ -347,7 +343,7 @@ TABLE(
 
 A separator line is output before each row that is dumped. The values are read in 2000 byte pieces, so the size of the LONG RAW is not limited by PL/SQL.
 
-Each LONG RAW is read by ROWID with its own statement. Reading several LONG RAW rows from one cursor crashes the server process with ORA-07445, see `experiments/long-raw-stream/bug-testcase/README.md`.
+Each LONG RAW is read by ROWID with its own statement. Reading several LONG RAW rows from one cursor crashes the server process with ORA-07445, see `bug-testcase/README.md`.
 
 ###  blob-load.pl
 

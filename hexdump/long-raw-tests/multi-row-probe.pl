@@ -3,7 +3,7 @@ use strict; use warnings; use DBI; $|=1;
 my ($label,$cache,$bind,$where,$count) = @ARGV;
 my $r = eval {
     my $db = DBI->connect("dbi:Oracle:$ENV{ORACLE_TEST_DB}",$ENV{ORACLE_TEST_USER},$ENV{ORACLE_TEST_PASSWORD},{RaiseError=>1,PrintError=>0,RowCacheSize=>$cache});
-    my $src = qq{table(hxatp_dump.hexdump_long_raw('HXATP_FIXTURE',null,'PAYLOAD',q'[$where]',sys.anydata.convertnumber(?)))};
+    my $src = qq{table(hexdump_binary.hexdump_long_raw('HXATP_FIXTURE',null,'PAYLOAD',q'[$where]',sys.anydata.convertnumber(?)))};
     my ($rows,$hdr) = (0,0);
     if ($count) {
         ($rows,$hdr) = $db->selectrow_array("select count(*), count(case when address='========' then 1 end) from $src",undef,$bind);

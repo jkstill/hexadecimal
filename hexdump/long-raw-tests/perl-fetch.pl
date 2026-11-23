@@ -3,8 +3,8 @@ use warnings;
 use DBI;
 use Digest::SHA qw(sha256_hex);
 $| = 1;
-my $db = DBI->connect('dbi:Oracle:jks26ai01','','',{RaiseError=>1,PrintError=>0,RowCacheSize=>100});
-my $sql = q{select address,data,text from table(hxatp_dump.hexdump_long_raw(
+my $db = DBI->connect("dbi:Oracle:$ENV{ORACLE_TEST_DB}",$ENV{ORACLE_TEST_USER},$ENV{ORACLE_TEST_PASSWORD},{RaiseError=>1,PrintError=>0,RowCacheSize=>100});
+my $sql = q{select address,data,text from table(hexdump_binary.hexdump_long_raw(
  'HXATP_FIXTURE',null,'PAYLOAD','where id=:b',sys.anydata.convertnumber(?)))};
 my $cycle = pack('C*',0..255);
 for my $n (-1,0,1,16,17,1999,2000,2001,8191,8192,8193,32767,32768,2097153) {

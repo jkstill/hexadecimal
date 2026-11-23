@@ -170,7 +170,7 @@ adrci> ips pack incident 47170 in /tmp
 
 ## Workaround in use
 
-Keep every LONG RAW statement to a single row and do `executeQuery`, `next` and the first read in one call. To process several rows, select their ROWIDs with an ordinary cursor, which can be fetched across calls, and run a separate single-row LONG RAW statement for each ROWID. Later reads of the same value may then span calls. This is what `hexdump-long-raw.sql` in the parent project does.
+Keep every LONG RAW statement to a single row and do `executeQuery`, `next` and the first read in one call. To process several rows, select their ROWIDs with an ordinary cursor, which can be fetched across calls, and run a separate single-row LONG RAW statement for each ROWID. Later reads of the same value may then span calls. This is what `hexdump-long-raw.sql` in the parent directory does.
 
 ## Questions for Oracle Support
 

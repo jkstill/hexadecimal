@@ -10,7 +10,7 @@ my $fail = 0;
 for my $n (@ARGV) {
     my $ok = eval {
         my $db = DBI->connect("dbi:Oracle:$ENV{ORACLE_TEST_DB}",$ENV{ORACLE_TEST_USER},$ENV{ORACLE_TEST_PASSWORD},{RaiseError=>1,PrintError=>0,RowCacheSize=>$cache});
-        my $q = $db->prepare(q{select address,data,text from table(hxatp_dump.hexdump_long_raw(
+        my $q = $db->prepare(q{select address,data,text from table(hexdump_binary.hexdump_long_raw(
           'HXATP_FIXTURE',null,'PAYLOAD','where id=:b',sys.anydata.convertnumber(?)))});
         $q->execute($n);
         my $expected = $n>0 ? substr($cycle x (1+int($n/256)),0,$n) : '';

@@ -1,7 +1,7 @@
 use strict;
 use warnings;
 use DBI qw(:sql_types);
-my $db = DBI->connect('dbi:Oracle:jks26ai01','','',{RaiseError => 1,PrintError=>0});
+my $db = DBI->connect("dbi:Oracle:$ENV{ORACLE_TEST_DB}",$ENV{ORACLE_TEST_USER},$ENV{ORACLE_TEST_PASSWORD},{RaiseError => 1,PrintError=>0});
 $db->do('create table hxatp_fixture (id number primary key, payload long raw)');
 my $insert = $db->prepare('insert into hxatp_fixture values (?,?)');
 my $cycle = pack('C*',0..255);
