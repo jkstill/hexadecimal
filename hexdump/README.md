@@ -2,23 +2,16 @@
 Hexdump for Oracle
 ==================
 
-# LONG RAW
-
-I was looking at using Java in the database to dump LONG RAW.
-
-For now though I am leaving off with this, as it is quite a bit more effort.
-
-If you really need to dump a LONG RAW, see `long-raw-hexdump.pl`
-
-
-## continue...
-
 Having wanted a hexdump for oracle for some time, I finally put one together.
 
 There are 2 packages
 
 - hexdump, created by hexdump.sql
 - hexdump_binary, created by hexdump-binary.sql
+
+Dumping a LONG RAW also requires `hexdump-long-raw.sql`, which needs the Oracle JVM.
+
+The `demo` directory has scripts that create test data for every supported data type, show each way of calling the packages, and remove the test data again. See `demo/README.md`.
 
 There are multiple ways to call hexdump:
 
@@ -47,29 +40,6 @@ The hexdump_binary package currently supports these data types:
 - BLOB
 - RAW
 - LONG RAW (requires the Oracle JVM, see `hexdump-long-raw.sql`)
-
-The notes below were written before LONG RAW support was added.
-
-In PL/SQL a LONG RAW can be manipulated as longs it the size is 32767 bytes or less.
-
-This is quite limiting, as a LONG RAW may be up to 2G in size.
-
-[Manipulate LONG RAW in PL/SQL](https://asktom.oracle.com/pls/apex/f?p=100:11:0::::P11_QUESTION_ID:201012348073)
-
-Even though that is a 20 year old thread at this time, the situation has not changed.
-
-Java could be used, I just haven't done it yet.
-
-[LONG RAW Length from Java](https://stackoverflow.com/questions/5497238/get-the-length-of-a-long-raw)
-
-A possibility would be to use Java to read the LONG RAW into an array of raw (hex) data.
-Then pass the array back to PL/SQL for processing.
-
-[How to return an array from Java to PL/SQL?](https://stackoverflow.com/questions/7872688/how-to-return-an-array-from-java-to-pl-sql)
-
-Really, a BLOB should be used, rather than a LONG RAW.
-
-But saying that does not help when one must work with what is supplied, and sometimes that is a LONG RAW.
 
 # Using the hexdump package
 
@@ -125,7 +95,7 @@ A cursor with a LONG cannot be passed via `table(select * from some_table)`
 
 Due to that, dynamic SQL is used via DBMS_SQL.
 
-The inputs to the hexdump_binary.hexdump_long have been sanitized and quoted to avoid SQL Injection.
+The inputs to the hexdump.hexdump_long have been sanitized and quoted to avoid SQL Injection.
 
 This package is intended more as a troubleshooting tool than an application tool, and so is not expected to be used as part of an application.
 
@@ -170,6 +140,40 @@ SEARCH:  jkstill
 ```
 
 The sql script `blob-test-long.sql` has the above example.
+
+### NUMBER
+
+A NUMBER is dumped as its character representation. Use `to_char()` to apply a format mask.
+
+See `demo/demo-number.sql`
+
+```text
+SQL# SELECT * FROM  TABLE(hexdump.hexdump(1234567.89));
+
+ADDRESS  DATA                                             TEXT
+-------- ------------------------------------------------ --------------------------------------------------
+00000000 31 32 33 34 35 36 37 2E 38 39                    |1234567.89|
+
+1 row selected.
+```
+
+### Multibyte characters
+
+Each byte of a multibyte character is shown as `^` in the text column. Here the text contains a 2 byte, a 3 byte and a 4 byte character.
+
+See `demo/demo-varchar2.sql` and `demo/demo-clob.sql`
+
+```text
+SQL# SELECT * FROM  TABLE(hexdump.hexdump(cursor(select v_text from hexdump_demo_text where name = 'multibyte')));
+
+ADDRESS  DATA                                             TEXT
+-------- ------------------------------------------------ --------------------------------------------------
+======== ================================================ ==================
+00000000 63 61 66 C3 A9 20 63 6F 73 74 73 20 35 E2 82 AC  |caf^^ costs 5^^^|
+00000010 20 F0 9F 98 80 20 65 6E 64                       | ^^^^ end|
+
+3 rows selected.
+```
 
 # Using the hexdump_binary package
 
@@ -310,7 +314,80 @@ ADDRESS  DATA                                             TEXT
 
 ```
 
+### LONG RAW
+
+As with a LONG, a LONG RAW cannot be passed via cursor(), so the table, column and WHERE clause are passed as parameters. The interface is the same as `hexdump.hexdump_long`, and the bind value may be a NUMBER or a VARCHAR2.
+
+This requires `hexdump-long-raw.sql` and the Oracle JVM.
+
+The examples use the table created by `demo/setup-long-raw.sql`. See `demo/demo-long-raw.sql` for more.
+
+```text
+SQL# desc HEXDUMP_DEMO_LONG_RAW
+ Name                          Null?    Type
+ ----------------------------- -------- --------------------
+ ID                            NOT NULL NUMBER
+ NAME                                   VARCHAR2(30)
+ PAYLOAD                                LONG RAW
+
+  1  SELECT * FROM
+  2  TABLE(
+  3     hexdump_binary.hexdump_long_raw(
+  4        tab_name_in => 'HEXDUMP_DEMO_LONG_RAW',
+  5        tab_column_in => 'PAYLOAD',
+  6        where_clause_in => 'where name = :b',
+  7        where_bind_val => SYS.ANYDATA.convertVarchar2('short')
+  8     )
+  9* )
+
+ADDRESS  DATA                                             TEXT
+-------- ------------------------------------------------ --------------------------------------------------
+======== ================================================ ==================
+00000000 41 20 73 68 6F 72 74 20 4C 4F 4E 47 20 52 41 57  |A short LONG RAW|
+00000010 20 76 61 6C 75 65                                | value|
+
+3 rows selected.
+```
+
+The size of the LONG RAW is not limited to 32767 bytes. This value is 100000 bytes:
+
+```text
+  1  SELECT * FROM
+  2  TABLE(
+  3     hexdump_binary.hexdump_long_raw(
+  4        tab_name_in => 'HEXDUMP_DEMO_LONG_RAW',
+  5        tab_column_in => 'PAYLOAD',
+  6        where_clause_in => 'where id = :b',
+  7        where_bind_val => SYS.ANYDATA.convertNumber(3)
+  8     )
+  9* )
+
+ADDRESS  DATA                                             TEXT
+-------- ------------------------------------------------ --------------------------------------------------
+======== ================================================ ==================
+00000000 00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F  |................|
+00000010 10 11 12 13 14 15 16 17 18 19 1A 1B 1C 1D 1E 1F  |................|
+00000020 20 21 22 23 24 25 26 27 28 29 2A 2B 2C 2D 2E 2F  | !"#$%&'()*+,-./|
+...
+00018680 80 81 82 83 84 85 86 87 88 89 8A 8B 8C 8D 8E 8F  |................|
+00018690 90 91 92 93 94 95 96 97 98 99 9A 9B 9C 9D 9E 9F  |................|
+
+6251 rows selected.
+```
+
 ## Files
+
+### demo
+
+Scripts to set up test data, demonstrate every supported data type, and drop the test data. See `demo/README.md`.
+
+### bug-testcase
+
+A test case for the ORA-07445 that occurs when a LONG RAW cursor is read across database calls. See `bug-testcase/README.md`.
+
+### long-raw-tests
+
+Perl and SQL scripts that verify `hexdump_binary.hexdump_long_raw` byte for byte. See `long-raw-tests/README.md`.
 
 ### hexdump.sql
 
