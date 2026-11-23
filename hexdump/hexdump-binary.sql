@@ -345,7 +345,7 @@ begin
 	i_blob_len := dbms_lob.getlength(blob_in);
 	--dbms_output.put_line('i_blob_len: ' || to_char(i_blob_len));
 
-	if (not i_blob_len > 0) then
+	if i_blob_len is null or (not i_blob_len > 0) then
 		pipe row (r_hexdump_row);
 		dbms_output.put_line('early exit hexdump(blob_in)');
 		return;
@@ -362,7 +362,7 @@ begin
 		i_loop_count := i_loop_count + 1;
 
 		-- exit loop when 
-		if i_blob_idx >= i_blob_len then
+		if i_blob_idx > i_blob_len then
 			--dbms_output.put_line('exit hexdump(blob_in) due to i_blob_idx');
 			exit;
 		end if;
@@ -400,9 +400,6 @@ function hexdump (hex_cursor t_blob_cursor) return t_hexdump_tab pipelined is
 	$end
 
 	i_pad_char integer := 88; -- X
-	i_blob_read_sz number := 32767;
-	r_buf raw(32767); -- must match read size
-	i_blob_offset number := 1;
 	b_working_blob blob;
 	i_convert_warning integer;
 	i_src_offset integer := 1;
@@ -441,36 +438,12 @@ begin
 
 		i_blob_idx := 1;
 
-		while true
+		for srec in ( select * from  table(hexdump(b_working_blob)))
 		loop
-			begin
-				dbms_lob.read(
-					lob_loc	=> b_working_blob,
-					amount	=> i_blob_read_sz,
-					offset	=> i_blob_offset,
-					buffer	=> r_buf
-				);
-			exception
-			when no_data_found then
-				exit;
-			when others then
-				raise;
-			end;
-
-			exit when i_blob_offset = 0;
-
-			i_blob_offset := i_blob_offset + i_blob_read_sz;
-			--dbms_output.put_line('r_buf len: ' || utl_raw.length(r_buf));
-
-			for srec in ( select * from  table(hexdump(r_buf)))
-			loop
-				null;
-				r_hexdump_row.address := srec.address;
-				r_hexdump_row.data := srec.data;
-				r_hexdump_row.text := srec.text;
-				pipe row (r_hexdump_row);
-			end loop;
-
+			r_hexdump_row.address := srec.address;
+			r_hexdump_row.data := srec.data;
+			r_hexdump_row.text := srec.text;
+			pipe row (r_hexdump_row);
 		end loop;
 
 	end loop;
@@ -479,6 +452,8 @@ begin
 
 
 exception
+when no_data_needed then
+	return;
 when others then
 	dbms_output.put_line('hexdump(blob_in)');
 	dbms_output.put_line(dbms_utility.format_call_stack);
@@ -521,13 +496,13 @@ begin
 	r_hdr_row.value_in    	:= null;
 	$end
 
-	i_blob_idx := 1;
 	loop
 		
 		fetch hex_cursor into r_working_raw;
 		b_working_blob := r_working_raw;
 
 		exit when hex_cursor%notfound ;
+		i_blob_idx := 1;
 		--dbms_output.put_line('blob len: ' || dbms_lob.getlength(b_working_blob));
 
 		-- header for each column dumped
@@ -553,6 +528,8 @@ begin
 	return;
 
 exception
+when no_data_needed then
+	return;
 when others then
 	dbms_output.put_line(dbms_utility.format_call_stack);
 	raise;

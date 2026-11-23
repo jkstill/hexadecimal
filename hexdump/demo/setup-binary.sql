@@ -44,4 +44,26 @@ begin
 end;
 /
 
+-- a BLOB larger than 32767 bytes: 40961 bytes, so the last line holds one byte
+declare
+	b blob;
+	r raw(256);
+begin
+	for i in 0 .. 255
+	loop
+		r := utl_raw.concat(r, hextoraw(to_char(i,'FM0X')));
+	end loop;
+	insert into hexdump_demo_binary values (4, 'over 32k', hextoraw('0102030405060708090A0B0C0D0E0F1011'), empty_blob())
+	returning my_blob into b;
+	for i in 1 .. 160
+	loop
+		dbms_lob.writeappend(b, 256, r);
+	end loop;
+	dbms_lob.writeappend(b, 1, hextoraw('FF'));
+end;
+/
+
+-- a row with no data
+insert into hexdump_demo_binary values (5, 'null', null, null);
+
 commit;

@@ -13,6 +13,7 @@ alter session set plsql_warnings = 'ENABLE:SEVERE';
 alter session set plsql_ccflags = 'debug:true, develop:true, mode11g:false';
 
 -- INTERPRETED (default) or NATIVE
+-- fails on oracle autonomous with ORA-01031: insufficient privileges
 alter session set PLSQL_CODE_TYPE =  INTERPRETED ;
 
 set feed on

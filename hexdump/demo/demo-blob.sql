@@ -31,6 +31,53 @@ select * from table(hexdump_binary.hexdump(cursor(select my_blob from hexdump_de
 where address >= '00004E00' and address < '========';
 
 prompt
+prompt == a BLOB of 40961 bytes, larger than one 32767 byte read: number of lines output
+prompt == 2561 data lines and one separator line are expected
+prompt
+
+select count(*) line_count
+from table(hexdump_binary.hexdump(cursor(select my_blob from hexdump_demo_binary where name = 'over 32k')));
+
+prompt
+prompt == the same BLOB: the lines either side of byte 32767, and the last lines
+prompt
+
+select * from table(hexdump_binary.hexdump(cursor(select my_blob from hexdump_demo_binary where name = 'over 32k')))
+where address between '00007FE0' and '00008010';
+
+select * from table(hexdump_binary.hexdump(cursor(select my_blob from hexdump_demo_binary where name = 'over 32k')))
+where address >= '00009FE0' and address < '========';
+
+prompt
+prompt == several rows in one cursor(): each row starts with a separator line
+prompt == and its addresses start again at 00000000
+prompt
+
+select * from table(hexdump_binary.hexdump(cursor(
+	select my_blob from hexdump_demo_binary where name in ('text','all bytes') order by id desc
+)));
+
+prompt
+prompt == every row in one cursor(): number of lines per row
+prompt == the NULL BLOB gives one empty line, and a message through dbms_output
+prompt
+
+select row_num, count(*) - 1 line_count
+from (
+	select sum(case when address = '========' then 1 else 0 end) over (order by rownum) row_num
+	from table(hexdump_binary.hexdump(cursor(select my_blob from hexdump_demo_binary order by id)))
+)
+group by row_num
+order by row_num;
+
+prompt
+prompt == fetching only the first lines of a large BLOB with rownum
+prompt
+
+select * from table(hexdump_binary.hexdump(cursor(select my_blob from hexdump_demo_binary where name = 'over 32k')))
+where rownum <= 5;
+
+prompt
 prompt == BLOB variable from PL/SQL
 prompt == set_i_blob_idx(1) must be called before each direct call
 prompt
