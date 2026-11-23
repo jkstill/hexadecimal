@@ -22,6 +22,14 @@ insert into hexdump_demo_text values (
 	'CLOB with CR/LF' || chr(13) || chr(10) || 'and a trailing space '
 );
 
+-- multibyte characters: e acute is 2 bytes, the euro sign 3 bytes and the emoji 4 bytes in AL32UTF8
+insert into hexdump_demo_text values (
+	4, 'multibyte',
+	'caf' || unistr('\00E9') || ' costs 5' || unistr('\20AC') || ' ' || unistr('\D83D\DE00') || ' end',
+	100,
+	'CLOB: ' || unistr('\00E9\20AC') || unistr('\D83D\DE00') || ' then ASCII, then' || unistr('\20AC\20AC\20AC\20AC\20AC\20AC')
+);
+
 -- a CLOB longer than 32767 characters
 declare
 	c clob;
