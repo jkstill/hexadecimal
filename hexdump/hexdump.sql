@@ -44,6 +44,9 @@ is
 	type t_hdr_tab is table of t_hdr_row;
 
 	function hexdump (text_in clob) return t_hexdump_tab pipelined;
+	-- the VARCHAR2 overload keeps calls with character data unambiguous now that NUMBER is accepted
+	function hexdump (text_in varchar2) return t_hexdump_tab pipelined;
+	function hexdump (number_in number) return t_hexdump_tab pipelined;
 	function hexdump (hex_cursor t_clob_cursor) return t_hexdump_tab pipelined;
 
 	function hexdump_long (
@@ -267,6 +270,24 @@ begin
 
 end;
 
+function hexdump (text_in varchar2) return t_hexdump_tab pipelined is
+begin
+	for srec in ( select * from  table(hexdump(to_clob(text_in))))
+	loop
+		pipe row (srec);
+	end loop;
+	return;
+end;
+
+-- a NUMBER is dumped as its character representation
+function hexdump (number_in number) return t_hexdump_tab pipelined is
+begin
+	for srec in ( select * from  table(hexdump(to_clob(to_char(number_in)))))
+	loop
+		pipe row (srec);
+	end loop;
+	return;
+end;
 
 function hexdump (hex_cursor t_clob_cursor ) return t_hexdump_tab pipelined is
 
@@ -517,7 +538,7 @@ Sections of this function:
 		dbms_sql.bind_variable(csr_id, ':b', v_bind_val);
 	elsif v_content =  'SYS.NUMBER' then
 		n_bind_val := sys.anydata.accessNumber(where_bind_val);
-		v_print_val := substr(to_char(v_bind_val),1,18);
+		v_print_val := substr(to_char(n_bind_val),1,18);
 		--dbms_output.put_line('bind number: ' || to_char(n_bind_val));
 		--dbms_output.put_line('v_sql: ' || v_sql);
 		dbms_sql.bind_variable(csr_id, ':b', n_bind_val);
@@ -606,6 +627,18 @@ Sections of this function:
 	dbms_sql.close_cursor(csr_id); 
 
 	return;
+
+exception
+when no_data_needed then
+	if csr_id is not null and dbms_sql.is_open(csr_id) then
+		dbms_sql.close_cursor(csr_id);
+	end if;
+	return;
+when others then
+	if csr_id is not null and dbms_sql.is_open(csr_id) then
+		dbms_sql.close_cursor(csr_id);
+	end if;
+	raise;
 end;
 
 begin

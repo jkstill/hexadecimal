@@ -119,6 +119,7 @@ my $hexRaw = unpack('H*',$raw);
 my $sql = 'delete from binary_test';
 $dbh->do($sql);
 
+# does not work on 12.1
 $sql = q{insert into binary_test(name,my_blob) values(?, utl_raw.cast_to_raw(?))};
 my $sth = $dbh->prepare($sql);
 $sth->execute(q{BLOB}, $dbh->quote($blob));
@@ -140,6 +141,15 @@ $sth->bind_param(1, q{VERY LONG RAW});
 $sth->bind_param(2, $longRaw, SQL_LONGVARBINARY);
 $sth->execute();
 
+$sql = q{insert into long_raw_convert
+select 'LRCONVERT', to_lob(?)
+from dual};
+
+
+$sth = $dbh->prepare($sql);
+$sth->bind_param(1, $longRaw , SQL_LONGVARBINARY);
+$sth->execute();
+
 $dbh->commit;
 
 $dbh->disconnect;
@@ -149,6 +159,8 @@ $fh->open('./baseline-raw.data','w') || die "cannot open baseline-raw.data\n";
 $fh->binmode();
 
 $fh->write($raw);
+$sth->bind_param(1, q{VERY LONG RAW});
+
 $fh->close;
 
 sub usage {

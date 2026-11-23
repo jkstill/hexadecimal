@@ -1,8 +1,10 @@
 
 set serveroutput on format wrapped size unlimited
-set linesize 200 trimspool on
+set linesize 250 trimspool on
 set pagesize 0
 col text format a50
+col data format a50
+col address format a10
 
 spool bt.log
 

@@ -51,6 +51,14 @@ is
 
 	function dump_hdr (hdr_in t_hdr_row) return t_hexdump_tab pipelined;
 
+	function hexdump_long_raw (
+		tab_name_in varchar2,
+		tab_owner_in varchar2 default null,
+		tab_column_in varchar2,
+		where_clause_in varchar2,
+		where_bind_val sys.anydata default null
+	) return t_hexdump_tab pipelined;
+
 	procedure set_i_blob_idx(idx_in pls_integer);
 
 	$if $$develop $then
@@ -237,6 +245,80 @@ begin
 end;
 
 
+function hexdump_long_raw (
+		tab_name_in varchar2,
+		tab_owner_in varchar2 default null,
+		tab_column_in varchar2,
+		where_clause_in varchar2,
+		where_bind_val sys.anydata default null
+	) return t_hexdump_tab pipelined is
+	bind_type varchar2(128);
+	bind_text varchar2(32767);
+	bind_number number;
+	chunks sys_refcursor;
+	stmt varchar2(32767);
+	row_stmt varchar2(32767);
+	tab_ref varchar2(300);
+	buf raw(2000);
+	line_bytes raw(16);
+	line t_hexdump_row;
+	header t_hdr_row;
+	byte_offset number;
+	pos pls_integer;
+
+begin
+	if instr(where_clause_in, ';') > 0 then
+		raise_application_error(-20001, 'Semicolon in WHERE clause');
+	end if;
+	tab_ref := case when tab_owner_in is not null then dbms_assert.enquote_name(tab_owner_in) || '.' end
+		|| dbms_assert.enquote_name(tab_name_in);
+	-- A LONG RAW cursor that advances to a second row in a later call crashes
+	-- the server process, so the filter selects ROWIDs and each value is read
+	-- by its own single-row statement.
+	stmt := 'select rowid from ' || tab_ref || ' ' || where_clause_in;
+	row_stmt := 'select ' || dbms_assert.enquote_name(tab_column_in) || ' from ' || tab_ref || ' where rowid = :r';
+	if where_bind_val is not null then
+		bind_type := where_bind_val.gettypename();
+		case bind_type
+			when 'SYS.NUMBER' then bind_number := where_bind_val.accessnumber();
+			when 'SYS.VARCHAR2' then bind_text := where_bind_val.accessvarchar2();
+			else raise_application_error(-20002, 'Expected a NUMBER or VARCHAR2 bind');
+		end case;
+	end if;
+	-- Dynamic resolution keeps the Java component optional for BLOB/RAW users.
+	open chunks for 'select column_value from table(' || dbms_assert.enquote_name($$plsql_unit_owner,false) || '.hexdump_raw_chunks(:s,:r,:t,:v,:n))'
+		using stmt, row_stmt, bind_type, bind_text, bind_number;
+	loop
+		fetch chunks into buf;
+		exit when chunks%notfound;
+		if buf is null then
+			for h in (select * from table(dump_hdr(header))) loop
+				line.address := h.address;
+				line.data := h.data;
+				line.text := h.text;
+				pipe row(line);
+			end loop;
+			byte_offset := 0;
+		else
+			pos := 1;
+			while pos <= utl_raw.length(buf) loop
+				line_bytes := utl_raw.substr(buf, pos, least(16, utl_raw.length(buf) - pos + 1));
+				line.address := lpad(to_char(byte_offset,'FMXXXXXXXX'),8,'0');
+				line.data := rtrim(regexp_replace(rawtohex(line_bytes),'(..)','\1 '));
+				line.text := safe_to_print(line_bytes);
+				pipe row(line);
+				pos := pos + 16;
+				byte_offset := byte_offset + utl_raw.length(line_bytes);
+			end loop;
+		end if;
+	end loop;
+	close chunks;
+	return;
+exception
+	when no_data_needed then if chunks%isopen then close chunks; end if; return;
+	when others then if chunks%isopen then close chunks; end if; raise;
+end;
+
 function hexdump (blob_in blob) return t_hexdump_tab pipelined is
 
 	i_blob_len integer := 0;
@@ -263,7 +345,7 @@ begin
 	i_blob_len := dbms_lob.getlength(blob_in);
 	--dbms_output.put_line('i_blob_len: ' || to_char(i_blob_len));
 
-	if (not i_blob_len > 0) then
+	if i_blob_len is null or (not i_blob_len > 0) then
 		pipe row (r_hexdump_row);
 		dbms_output.put_line('early exit hexdump(blob_in)');
 		return;
@@ -280,7 +362,7 @@ begin
 		i_loop_count := i_loop_count + 1;
 
 		-- exit loop when 
-		if i_blob_idx >= i_blob_len then
+		if i_blob_idx > i_blob_len then
 			--dbms_output.put_line('exit hexdump(blob_in) due to i_blob_idx');
 			exit;
 		end if;
@@ -318,9 +400,6 @@ function hexdump (hex_cursor t_blob_cursor) return t_hexdump_tab pipelined is
 	$end
 
 	i_pad_char integer := 88; -- X
-	i_blob_read_sz number := 32767;
-	r_buf raw(32767); -- must match read size
-	i_blob_offset number := 1;
 	b_working_blob blob;
 	i_convert_warning integer;
 	i_src_offset integer := 1;
@@ -359,36 +438,12 @@ begin
 
 		i_blob_idx := 1;
 
-		while true
+		for srec in ( select * from  table(hexdump(b_working_blob)))
 		loop
-			begin
-				dbms_lob.read(
-					lob_loc	=> b_working_blob,
-					amount	=> i_blob_read_sz,
-					offset	=> i_blob_offset,
-					buffer	=> r_buf
-				);
-			exception
-			when no_data_found then
-				exit;
-			when others then
-				raise;
-			end;
-
-			exit when i_blob_offset = 0;
-
-			i_blob_offset := i_blob_offset + i_blob_read_sz;
-			--dbms_output.put_line('r_buf len: ' || utl_raw.length(r_buf));
-
-			for srec in ( select * from  table(hexdump(r_buf)))
-			loop
-				null;
-				r_hexdump_row.address := srec.address;
-				r_hexdump_row.data := srec.data;
-				r_hexdump_row.text := srec.text;
-				pipe row (r_hexdump_row);
-			end loop;
-
+			r_hexdump_row.address := srec.address;
+			r_hexdump_row.data := srec.data;
+			r_hexdump_row.text := srec.text;
+			pipe row (r_hexdump_row);
 		end loop;
 
 	end loop;
@@ -397,6 +452,8 @@ begin
 
 
 exception
+when no_data_needed then
+	return;
 when others then
 	dbms_output.put_line('hexdump(blob_in)');
 	dbms_output.put_line(dbms_utility.format_call_stack);
@@ -439,13 +496,13 @@ begin
 	r_hdr_row.value_in    	:= null;
 	$end
 
-	i_blob_idx := 1;
 	loop
 		
 		fetch hex_cursor into r_working_raw;
 		b_working_blob := r_working_raw;
 
 		exit when hex_cursor%notfound ;
+		i_blob_idx := 1;
 		--dbms_output.put_line('blob len: ' || dbms_lob.getlength(b_working_blob));
 
 		-- header for each column dumped
@@ -471,6 +528,8 @@ begin
 	return;
 
 exception
+when no_data_needed then
+	return;
 when others then
 	dbms_output.put_line(dbms_utility.format_call_stack);
 	raise;
