@@ -2,14 +2,14 @@
 -- Steps: o = executeQuery, n = ResultSet.next() and getBinaryStream,
 --        r<count> = read up to <count> bytes, R = read to end of the value.
 set define off
-create table lrbug_t (id number primary key, payload long raw);
+create table lrstep_t (id number primary key, payload long raw);
 declare
 	v raw(32767);
 begin
 	v := utl_raw.copies(hextoraw('41'), 20000);
-	insert into lrbug_t values (1, v);
+	insert into lrstep_t values (1, v);
 	v := utl_raw.copies(hextoraw('42'), 20000);
-	insert into lrbug_t values (2, v);
+	insert into lrstep_t values (2, v);
 	commit;
 end;
 /
@@ -27,7 +27,7 @@ public class LrStep {
         for (String step : steps.trim().split("\\s+")) {
             if (step.equals("o")) {
                 stmt = DriverManager.getConnection("jdbc:default:connection:")
-                        .prepareStatement("select payload from lrbug_t order by id");
+                        .prepareStatement("select payload from lrstep_t order by id");
                 rows = stmt.executeQuery();
                 out.append("open ");
             } else if (step.equals("n")) {

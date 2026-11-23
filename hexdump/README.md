@@ -42,13 +42,15 @@ While there is not yet any support for TIMESTAMP and DATE, those may be added in
 The methods to call hexdump_binary:
 - directly for a single value
 - a column in a table via cursor()
+- when dumping a LONG RAW, then several parameters are set
 
 The hexdump_binary package currently supports these data types:
 
 - BLOB
 - RAW
+- LONG RAW (requires the Oracle JVM, see `hexdump-long-raw.sql`)
 
-There is not yet any support for LONG RAW.
+The notes below were written before LONG RAW support was added.
 
 In PL/SQL a LONG RAW can be manipulated as longs it the size is 32767 bytes or less.
 
@@ -319,6 +321,33 @@ This creates the package `hexdump`
 ### hexdump-binary.sql
 
 This creates the package `hexdump_binary`
+
+### hexdump-long-raw.sql
+
+This creates the Java reader used by `hexdump_binary.hexdump_long_raw`. It requires the Oracle JVM.
+
+Install it after `hexdump-binary.sql`. It is not needed for dumping BLOB and RAW.
+
+The interface is the same as `hexdump.hexdump_long`. The bind value may be a NUMBER or a VARCHAR2.
+
+example:
+
+```sql
+SELECT * FROM
+TABLE(
+   hexdump_binary.hexdump_long_raw(
+      tab_name_in => 'BINARY_TEST',
+      tab_column_in => 'MY_LONG_RAW',
+      where_clause_in => 'where name = :b',
+      where_bind_val => SYS.ANYDATA.convertVarchar2('VERY LONG RAW')
+   )
+)
+
+```
+
+A separator line is output before each row that is dumped. The values are read in 2000 byte pieces, so the size of the LONG RAW is not limited by PL/SQL.
+
+Each LONG RAW is read by ROWID with its own statement. Reading several LONG RAW rows from one cursor crashes the server process with ORA-07445, see `experiments/long-raw-stream/bug-testcase/README.md`.
 
 ###  blob-load.pl
 

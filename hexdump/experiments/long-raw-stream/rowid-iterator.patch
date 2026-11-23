@@ -1,6 +1,8 @@
+diff --git a/hexdump/hexdump-binary.sql b/hexdump/hexdump-binary.sql
+index 18e6171..e7d2768 100644
 --- a/hexdump/hexdump-binary.sql
 +++ b/hexdump/hexdump-binary.sql
-@@ -51,6 +51,14 @@
+@@ -51,6 +51,14 @@ is
  
  	function dump_hdr (hdr_in t_hdr_row) return t_hexdump_tab pipelined;
  
@@ -15,28 +17,7 @@
  	procedure set_i_blob_idx(idx_in pls_integer);
  
  	$if $$develop $then
-@@ -149,9 +157,9 @@
- 	loop
- 
- 		begin
--			v_chr := utl_raw.cast_to_varchar2(utl_raw.substr(text_in,i,1));
-+			i_ascii_val := to_number(rawtohex(utl_raw.substr(text_in,i,1)),'XX');
- 			--dbms_output.put_line('safe_print loop - v_chr: ' || to_char(ascii(v_chr)));
--			i_ascii_val := ascii(v_chr);
-+
- 		exception
- 		when others then
- 			dbms_output.put_line('stp exception in loop: ' || sqlcode);
-@@ -163,7 +171,7 @@
- 
- 		-- printable ascii values
- 		if i_ascii_val between 32 and 126 then
--			v_ret_string := v_ret_string || v_chr;
-+			v_ret_string := v_ret_string || chr(i_ascii_val);
- 		else
- 			v_ret_string := v_ret_string || '.';
- 		end if;
-@@ -237,6 +245,80 @@
+@@ -237,6 +245,80 @@ begin
  end;
  
  

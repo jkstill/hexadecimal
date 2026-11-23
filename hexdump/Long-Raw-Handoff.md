@@ -1,6 +1,6 @@
 # LONG RAW handoff
 
-**Status on 22 November 2026, branch `long-raw`.** The experimental Java reader can read a complete `LONG RAW` beyond 32,767 bytes. On ATP, the dump formatter produced correct output through 2,097,153 bytes. The local databases lost Oracle server processes during client fetch. A later ATP run on the same day reproduced that disconnect, and a standalone test case with no hexdump code now reproduces it on all three databases. A ROWID variant of the iterator avoids the crash and passes the full test suite on local 26ai, local 19c and ATP. See "Standalone test case for the crash" and "ROWID variant of the iterator" below. The production package installer still supports BLOB and RAW only.
+**Status on 22 November 2026, branch `long-raw`.** The experimental Java reader can read a complete `LONG RAW` beyond 32,767 bytes. On ATP, the dump formatter produced correct output through 2,097,153 bytes. The local databases lost Oracle server processes during client fetch. A later ATP run on the same day reproduced that disconnect, and a standalone test case with no hexdump code now reproduces it on all three databases. A ROWID variant of the iterator avoids the crash and passes the full test suite on local 26ai, local 19c and ATP. See "Standalone test case for the crash" and "ROWID variant of the iterator" below. The ROWID variant has been merged: `hexdump-binary.sql` now includes `hexdump_long_raw`, and `hexdump-long-raw.sql` installs the Java reader it needs.
 
 ## Intended behavior
 
@@ -121,13 +121,15 @@ A first version of the variant, which left the first read to a later call, passe
 
 **Consequences of the variant.** The ROWID query and the per-row statements are separate statements, so they are not read consistent with each other. A row deleted after the ROWID query ran is dumped as an empty value. The filter must be valid against a `select rowid from <table>` statement, so the source must be a table that has ROWIDs.
 
-**Still open.** Server memory growth was measured at one size only, and nothing larger than 2,097,153 bytes has been tested. The variant has not been merged into the package installer. Both integration patches, including the new one, still carry the `safe_to_print` change described below.
+**Merge.** The variant was merged into `hexdump-binary.sql` without the `safe_to_print` change described below. The original regression harness passed on all three databases with `safe_to_print` left as it was, so that change was not needed. The Java reader, iterator type and chunk function are installed by the new `hexdump-long-raw.sql`. A real install from those two files on local 26ai passed the unmodified regression harness.
+
+**Still open.** Server memory growth was measured at one size only, and nothing larger than 2,097,153 bytes has been tested. SQL*Plus was not used as the fetching client for the merged package.
 
 ## Test scripts and prototype sources
 
 The links below are relative to this handoff. The ATP test scripts are archived copies of the temporary files used during the session, and the first four hard-code the `jks26ai01` alias. Fixture loaders create their own test table and the consumers expect the isolated ATP package. They are historical test artifacts, separate from the package installer.
 
-All three PL/SQL integration patches also change the shared `safe_to_print` function, which the existing BLOB and RAW dumps use. It now derives the byte value with `to_number(rawtohex(...))` and `chr` in place of `utl_raw.cast_to_varchar2` and `ascii`. The reason was not recorded. Review that change separately before applying any of them.
+The two earlier PL/SQL integration patches also change the shared `safe_to_print` function, which the existing BLOB and RAW dumps use. They derive the byte value with `to_number(rawtohex(...))` and `chr` in place of `utl_raw.cast_to_varchar2` and `ascii`. The reason was not recorded, and the merged code does not include that change. Both earlier patches were made against the installer as it was before the merge and no longer apply to it.
 
 | Artifact | Purpose |
 | --- | --- |
@@ -138,14 +140,15 @@ All three PL/SQL integration patches also change the shared `safe_to_print` func
 | [ATP PL/SQL verification](experiments/long-raw-stream/atp/check.sql) | Compares the formatter's output with independently constructed expected lines inside the database. |
 | [ATP Perl fetch verification](experiments/long-raw-stream/atp/perl-fetch.pl) | The actual mixed direct/sorted ATP test. It verifies individual fields, line and header counts, and the digest of the reassembled value. |
 | [Unsorted fetch](experiments/long-raw-stream/atp/direct-fetch.pl), [multi-row probe](experiments/long-raw-stream/atp/multi-row-probe.pl) and [early termination check](experiments/long-raw-stream/atp/early-termination.pl) | The follow-up tests. They connect with `ORACLE_TEST_DB`, `ORACLE_TEST_USER` and `ORACLE_TEST_PASSWORD`, as the original harness does, and expect the `HXATP_*` names. The first takes a row cache size and a list of fixture IDs. The second takes a label, row cache size, bind value, filter clause and an optional flag to count on the server. |
-| [ROWID iterator](experiments/long-raw-stream/rowid-iterator.sql) and [PL/SQL integration patch](experiments/long-raw-stream/rowid-iterator.patch) | The variant that passes on all three databases. The patch applies to the current `hexdump-binary.sql`. |
-| [Step-driven crash test case](experiments/long-raw-stream/bug-testcase/lrstep-setup.sql) with its [cleanup](experiments/long-raw-stream/bug-testcase/lrstep-drop.sql) | Standalone reproduction for an SR. After setup, run each call as `select lrstep('o n') from dual;` in a fresh session. |
+| [ROWID iterator](experiments/long-raw-stream/rowid-iterator.sql) and [PL/SQL integration patch](experiments/long-raw-stream/rowid-iterator.patch) | The variant that passes on all three databases. The patch is the change that was merged into `hexdump-binary.sql`, and the iterator is the same code as `hexdump-long-raw.sql`. |
+| [SR document](experiments/long-raw-stream/bug-testcase/README.md) | Describes the crash for an Oracle Service Request, with the commands, expected output and alert log entries. |
+| [Step-driven crash test case](experiments/long-raw-stream/bug-testcase/lrstep-setup.sql) with its [run script](experiments/long-raw-stream/bug-testcase/lrstep-run.sql) and [cleanup](experiments/long-raw-stream/bug-testcase/lrstep-drop.sql) | Standalone reproduction for an SR. Each argument to the run script is one database call. Use a fresh session for each case. |
 | [Three-row crash test case](experiments/long-raw-stream/bug-testcase/lrbug-setup.sql), [run script](experiments/long-raw-stream/bug-testcase/lrbug-run.sql) and [cleanup](experiments/long-raw-stream/bug-testcase/lrbug-drop.sql) | Simpler reproduction with a `RAW(2000)` control. Run `@lrbug-run LRBUG_R` for the control and `@lrbug-run LRBUG_T` for LONG RAW. |
 | [19c Java digest probe](experiments/long-raw-stream/19c-digest-probe.sql) | Credential-free transcription of the successful inline SQL*Plus probe. The initial DBMS_SQL checks and short SQL*Plus queries were also issued inline. Their observations are recorded above. |
 
 ## State at handoff
 
-- **Local 26ai:** All test objects were removed after the follow-up runs. That includes the experimental `HEXDUMP_BINARY` package and `HexdumpLongRaw` Java reader that the first session had left behind. Both were created on 22 November 2026 by that session, so no earlier package was lost. No `HEXDUMP_BINARY` package is installed in the test schema now.
+- **Local 26ai:** All test objects were removed after the follow-up runs. That includes the experimental `HEXDUMP_BINARY` package and `HexdumpLongRaw` Java reader that the first session had left behind. Both were created on 22 November 2026 by that session, so no earlier package was lost. The merged `HEXDUMP_BINARY` package and its Java reader were then installed from `hexdump-binary.sql` and `hexdump-long-raw.sql` and left in place, all objects valid.
 - **Local 19c:** All test objects were removed. The pre-existing `HEXDUMP_BINARY` package and body and `BINARY_TEST` table were verified valid.
 - **ATP:** Cleanup verified zero remaining test objects. JAVAVM remains enabled. The experimental package is not currently installed there.
-- **Repository:** The ROWID variant exists only as the experiment files listed above. `hexdump-binary.sql` is unchanged.
+- **Repository:** `hexdump-binary.sql` is modified and `hexdump-long-raw.sql` is new. Neither is committed.
