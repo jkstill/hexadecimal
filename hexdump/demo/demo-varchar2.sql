@@ -30,3 +30,16 @@ prompt == several rows via cursor(): a separator line precedes each value
 prompt
 
 select * from table(hexdump.hexdump(cursor(select v_text from hexdump_demo_text order by id)));
+
+prompt
+prompt == multibyte characters: each line holds 16 bytes and the address counts bytes
+prompt == every byte of a multibyte character is shown as ^ in the TEXT column
+prompt
+
+select * from table(hexdump.hexdump(cursor(select v_text from hexdump_demo_text where name = 'multibyte')));
+
+prompt
+prompt == a multibyte character built in SQL: the euro sign is the three bytes E2 82 AC in AL32UTF8
+prompt
+
+select * from table(hexdump.hexdump('price: ' || to_char(unistr('\20AC')) || '5'));

@@ -43,3 +43,10 @@ begin
 	end loop;
 end;
 /
+
+prompt
+prompt == CLOB with multibyte characters
+prompt == the last euro sign starts on one line and ends on the next
+prompt
+
+select * from table(hexdump.hexdump(cursor(select c_text from hexdump_demo_text where name = 'multibyte')));

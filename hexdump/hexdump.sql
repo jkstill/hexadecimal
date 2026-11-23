@@ -80,6 +80,9 @@ is
 
 	b_show_sql boolean := FALSE;
 
+	-- shown in the text column for each byte of a multibyte character
+	c_multibyte_marker constant varchar2(1) := '^';
+
 procedure show_sql_enable
 is
 begin
@@ -127,33 +130,6 @@ begin
 
 	return v_ret_string;
 
-end;
-
-function safe_to_print (text_in varchar2) return varchar2
-is
-	i_text_len integer;
-	v_ret_string varchar2(256);
-	i_ascii_val integer;
-	v_chr varchar2(1);
-begin
-	i_text_len := length(text_in);
-
-	if i_text_len = 0 then
-		return '|' || rpad('.',16,'.') || '|';
-	end if;
-
-	for i in 1 .. i_text_len
-	loop
-		v_chr := substr(text_in,i,1);
-		i_ascii_val := ascii(v_chr);
-		if i_ascii_val between 32 and 122 then
-			v_ret_string := v_ret_string || v_chr;
-		else
-			v_ret_string := v_ret_string || '.';
-		end if;
-	end loop;
-
-	return '|' || v_ret_string || '|';
 end;
 
 function dump_hdr (hdr_in t_hdr_row) return t_hexdump_tab pipelined
@@ -214,12 +190,21 @@ end;
 
 function hexdump (text_in clob) return t_hexdump_tab pipelined is
 
-	-- currently not considering multibyte characters
+	-- Lines hold 16 bytes and the address counts bytes.
+	-- In the text column each byte of a multibyte character is shown as c_multibyte_marker.
 	c_working_text clob;
 	i_text_len integer := 0;
 	i_text_idx integer := 0;
-	i_text_chunksize integer := 16;
-	i_text_chunk varchar2(16);
+	i_read_chars constant integer := 256;
+	v_text_chunk varchar2(1024); -- i_read_chars characters of up to 4 bytes
+	v_chr varchar2(4);
+	v_chr_hex varchar2(8);
+	i_chr_bytes integer;
+	i_ascii_val integer;
+	i_address integer := 0;
+	i_line_bytes integer := 0;
+	v_line_data varchar2(48);
+	v_line_text varchar2(16);
 
 	$if dbms_db_version.version < 18 $then
 	r_hexdump_row t_hexdump_row ;
@@ -227,7 +212,6 @@ function hexdump (text_in clob) return t_hexdump_tab pipelined is
 	r_hexdump_row t_hexdump_row := t_hexdump_row(null,null,null);
 	$end
 
-	v_hex_address varchar2(8);
 begin
 
 	$if dbms_db_version.version < 18 $then
@@ -239,32 +223,81 @@ begin
 	c_working_text := text_in;
 	i_text_len := dbms_lob.getlength(c_working_text);
 
-	if (not i_text_len > 0) then
+	if i_text_len is null or (not i_text_len > 0) then
 		pipe row (r_hexdump_row);
 		return;
 	end if;
 
 	i_text_idx := 1;
-	
-	while true
+
+	while i_text_idx <= i_text_len
 	loop
-		i_text_chunk := dbms_lob.substr(c_working_text,i_text_chunksize, i_text_idx);
+		v_text_chunk := dbms_lob.substr(c_working_text,i_read_chars, i_text_idx);
 
-		r_hexdump_row.address := lpad(trim(to_char(i_text_idx-1,'XXXXXXXX')),8,0);
+		for i in 1 .. length(v_text_chunk)
+		loop
+			v_chr := substr(v_text_chunk,i,1);
+			v_chr_hex := rawtohex(utl_raw.cast_to_raw(v_chr));
+			i_chr_bytes := length(v_chr_hex) / 2;
+			i_ascii_val := ascii(v_chr);
 
-		r_hexdump_row.data := to_spaced_hex(i_text_chunk);
-		r_hexdump_row.text := safe_to_print(i_text_chunk);
+			for b in 1 .. i_chr_bytes
+			loop
+				v_line_data := v_line_data || substr(v_chr_hex,b*2-1,2) || ' ';
 
-		pipe row (r_hexdump_row);
+				/*
+				  To display the multibyte character itself rather than the marker:
+				  the character is shown at its first byte and '.' fills its remaining bytes.
 
-		i_text_idx := i_text_idx + i_text_chunksize;
+				  1. declare v_line_text as varchar2(40), as a line of 16 bytes
+				     can then need up to 31 bytes of text
 
-		-- exit loop when 
-		if i_text_idx >= i_text_len then
-			exit;
-		end if;
+				  2. replace the assignment of c_multibyte_marker below with
+
+				     v_line_text := v_line_text || case when b = 1 then v_chr else '.' end;
+
+				  The line 'price: <euro sign>5 caf<e acute>' is then shown as
+
+				  00000000 70 72 69 63 65 3A 20 E2 82 AC 35 20 63 61 66 C3  |price: <euro sign>..5 caf<e acute>|
+				  00000010 A9                                               |.|
+
+				  The columns stay aligned only when the client draws each character
+				  one column wide, and the client character set must be able to display it.
+				*/
+				if i_chr_bytes > 1 then
+					v_line_text := v_line_text || c_multibyte_marker;
+				elsif i_ascii_val between 32 and 122 then
+					v_line_text := v_line_text || v_chr;
+				else
+					v_line_text := v_line_text || '.';
+				end if;
+
+				i_line_bytes := i_line_bytes + 1;
+
+				if i_line_bytes = 16 then
+					r_hexdump_row.address := lpad(trim(to_char(i_address,'XXXXXXXX')),8,0);
+					r_hexdump_row.data := rtrim(v_line_data);
+					r_hexdump_row.text := '|' || v_line_text || '|';
+					pipe row (r_hexdump_row);
+					i_address := i_address + i_line_bytes;
+					i_line_bytes := 0;
+					v_line_data := null;
+					v_line_text := null;
+				end if;
+			end loop;
+		end loop;
+
+		-- a CLOB offset counts UTF-16 code units, so a 4 byte character counts as 2
+		i_text_idx := i_text_idx + length2(v_text_chunk);
 
 	end loop;
+
+	if i_line_bytes > 0 then
+		r_hexdump_row.address := lpad(trim(to_char(i_address,'XXXXXXXX')),8,0);
+		r_hexdump_row.data := rtrim(v_line_data);
+		r_hexdump_row.text := '|' || v_line_text || '|';
+		pipe row (r_hexdump_row);
+	end if;
 
 	return;
 

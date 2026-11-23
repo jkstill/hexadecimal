@@ -35,6 +35,8 @@ The hexdump package currently supports these data types:
 
 While there is not yet any support for TIMESTAMP and DATE, those may be added in the future.
 
+Text is dumped as bytes in the database character set, 16 bytes per line, and the address counts bytes. In the text column each byte of a multibyte character is shown as `^`, and a non printable single byte character is shown as `.`.
+
 The methods to call hexdump_binary:
 - directly for a single value
 - a column in a table via cursor()
